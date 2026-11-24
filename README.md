@@ -8,6 +8,16 @@ StudyOrbit is an offline Android app for focus sessions and distraction blocking
 
 Android Accessibility is required for blocking. Usage Access is required for app limits and screen-time reports. Website and short-video detection depends on what the browser or app exposes to Android.
 
+## Download
+
+Get the optimized APK from the [latest GitHub release](https://github.com/truepushkar/studyorbit/releases/latest).
+
+## Screenshots
+
+| Focus | Block | Planner | Progress |
+| --- | --- | --- | --- |
+| <img src="docs/screenshots/focus.png" width="185" alt="Focus tab with the orbit timer and study controls"> | <img src="docs/screenshots/block.png" width="185" alt="Block tab with distraction controls and study rules"> | <img src="docs/screenshots/planner.png" width="185" alt="Planner tab with the weekly study calendar"> | <img src="docs/screenshots/progress.png" width="185" alt="Progress tab with the daily goal, study streak, and weekly chart"> |
+
 ## Build
 
 Use JDK 17 and Android SDK Platform 35. The app supports Android 8.0 and later.

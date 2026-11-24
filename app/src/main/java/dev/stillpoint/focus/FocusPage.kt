@@ -1,5 +1,8 @@
 package dev.stillpoint.focus
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -24,6 +27,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalDensity
@@ -270,11 +274,10 @@ private fun TimerDial(active: Session?, phase: Phase, mode: TimerMode, minutes: 
         contentAlignment = Alignment.Center
     ) {
         val clockWidth = minOf(maxWidth.value * 0.63f, 168f)
+        TimerPetals(Modifier.matchParentSize(), accent, active?.running == true, phase, active?.round)
         Box(Modifier.matchParentSize().drawWithCache {
             val mid = Offset(size.width / 2, size.height / 2)
             val radius = minOf(size.width * 0.34f, size.height * 0.405f)
-            val orbit = Size(radius * 3.15f, radius * 1.22f)
-            val orbitOrigin = mid - Offset(orbit.width / 2, orbit.height / 2)
             val majorTicks = Path()
             val minorTicks = Path()
             val tickStroke = Stroke(1.dp.toPx(), cap = StrokeCap.Round)
@@ -289,12 +292,6 @@ private fun TimerDial(active: Session?, phase: Phase, mode: TimerMode, minutes: 
                 path.lineTo(end.x, end.y)
             }
             onDrawBehind {
-                rotate(-22f, pivot = mid) {
-                    drawOval(accent.copy(alpha = 0.12f), orbitOrigin, orbit, style = tickStroke)
-                }
-                rotate(22f, pivot = mid) {
-                    drawOval(accent.copy(alpha = 0.08f), orbitOrigin, orbit, style = tickStroke)
-                }
                 drawCircle(surface, radius + 11.dp.toPx(), mid)
                 drawPath(majorTicks, accent.copy(alpha = 0.42f), style = tickStroke)
                 drawPath(minorTicks, accent.copy(alpha = 0.19f), style = tickStroke)
@@ -323,6 +320,43 @@ private fun TimerDial(active: Session?, phase: Phase, mode: TimerMode, minutes: 
             }
         }
     }
+}
+
+@Composable
+private fun TimerPetals(modifier: Modifier, accent: Color, running: Boolean, phase: Phase, round: Int?) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val bloom = remember(running, phase, round) { Animatable(0f) }
+    LaunchedEffect(bloom, lifecycle) {
+        if (!running) return@LaunchedEffect
+        var played = false
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            bloom.snapTo(0f)
+            if (!played) {
+                played = true
+                bloom.animateTo(1f, tween(durationMillis = 270, easing = FastOutSlowInEasing))
+                bloom.animateTo(0f, tween(durationMillis = 520, easing = FastOutSlowInEasing))
+            }
+        }
+    }
+
+    Box(modifier
+        .graphicsLayer {
+            val amount = bloom.value
+            rotationZ = amount * 7f
+            scaleX = 1f + amount * 0.055f
+            scaleY = 1f + amount * 0.13f
+        }
+        .drawWithCache {
+            val mid = Offset(size.width / 2, size.height / 2)
+            val radius = minOf(size.width * 0.34f, size.height * 0.405f)
+            val oval = Size(radius * 3.15f, radius * 1.22f)
+            val origin = mid - Offset(oval.width / 2, oval.height / 2)
+            val line = Stroke(1.dp.toPx())
+            onDrawBehind {
+                rotate(-22f, pivot = mid) { drawOval(accent.copy(alpha = 0.12f), origin, oval, style = line) }
+                rotate(22f, pivot = mid) { drawOval(accent.copy(alpha = 0.08f), origin, oval, style = line) }
+            }
+        })
 }
 
 @Composable
