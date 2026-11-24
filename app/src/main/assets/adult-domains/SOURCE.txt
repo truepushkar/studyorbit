@@ -1,0 +1,3 @@
+The Block List Project adult-domain list. Released under the Unlicense.
+https://github.com/blocklistproject/Lists/blob/main/porn.txt
+https://github.com/blocklistproject/Lists/blob/main/LICENSE
