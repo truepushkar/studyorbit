@@ -63,33 +63,38 @@ internal fun PlannerPage(
         item {
             Surface(Modifier.fillMaxWidth(), color = OrbitSurface, shape = CardShape,
                 border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-                Column(Modifier.padding(start = 7.dp, end = 7.dp, bottom = 18.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 1.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { weekOffset-- }, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                            Text("‹ Prev", fontSize = 13.sp)
-                        }
-                        Text(weekLabel, Modifier.weight(1f), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                        TextButton(onClick = { weekOffset++ }, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                            Text("Next ›", fontSize = 13.sp)
-                        }
+                Column {
+                    AtlasPanel(R.drawable.atlas_planner, artAlignment = Alignment.TopCenter) {
+                        Text(weekLabel, Modifier.heightIn(min = 140.dp).padding(16.dp), color = Ink,
+                            fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                        repeat(7) { index ->
-                            val date = week.plusDays(index.toLong())
-                            val selected = dayOffset == index
-                            val full = date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL))
-                            Column(Modifier.weight(1f).heightIn(min = 92.dp).clip(CircleShape)
-                                .background(if (selected) Purple else Color.Transparent)
-                                .selectable(selected, role = Role.Tab) { dayOffset = index }
-                                .semantics(mergeDescendants = true) { contentDescription = full }
-                                .padding(top = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(date.format(DateTimeFormatter.ofPattern("EEE")).take(1),
-                                    color = if (selected) OnAccent else Muted, fontSize = 12.sp)
-                                Text(date.dayOfMonth.toString(), Modifier.padding(top = 6.dp),
-                                    color = if (selected) OnAccent else Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                                if (dotDays[index]) Box(Modifier.padding(top = 7.dp).size(6.dp)
-                                    .background(if (selected) OnAccent else Purple, CircleShape))
+                    Column(Modifier.padding(start = 7.dp, end = 7.dp, bottom = 10.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { weekOffset-- }, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                                Text("‹ Prev", fontSize = 13.sp)
+                            }
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = { weekOffset++ }, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                                Text("Next ›", fontSize = 13.sp)
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                            repeat(7) { index ->
+                                val date = week.plusDays(index.toLong())
+                                val selected = dayOffset == index
+                                val full = date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL))
+                                Column(Modifier.weight(1f).heightIn(min = 70.dp).clip(FieldShape)
+                                    .background(if (selected) Accent else Color.Transparent)
+                                    .selectable(selected, role = Role.Tab) { dayOffset = index }
+                                    .semantics(mergeDescendants = true) { contentDescription = full }
+                                    .padding(top = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(date.format(DateTimeFormatter.ofPattern("EEE")).take(2),
+                                        color = if (selected) OnAccent else Muted, fontSize = 12.sp)
+                                    Text(date.dayOfMonth.toString(), Modifier.padding(top = 6.dp),
+                                        color = if (selected) OnAccent else Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                                    if (dotDays[index]) Box(Modifier.padding(top = 7.dp).size(6.dp)
+                                        .background(if (selected) OnAccent else Accent, CircleShape))
+                                }
                             }
                         }
                     }
@@ -104,12 +109,10 @@ internal fun PlannerPage(
         }
         if (itemsForDay.isEmpty()) item {
             Panel {
-                Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    OrbitHeading("No sessions planned", size = 19)
-                    Text("Add a study session when you know what works.", Modifier.padding(vertical = 12.dp),
-                        color = Muted, fontSize = 13.sp)
-                    OrbitButton("Plan a study session", { editId = "" }, Modifier.fillMaxWidth(),
-                        enabled = !locked, primary = false)
+                Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    OrbitHeading("Open study day", size = 22)
+                    Text("No sessions scheduled for this date.", Modifier.padding(top = 5.dp),
+                        color = Muted, fontSize = 14.sp)
                 }
             }
         }
@@ -118,8 +121,8 @@ internal fun PlannerPage(
                 val clock = DateTimeFormatter.ofPattern(if (DateFormat.is24HourFormat(LocalContext.current)) "HH:mm" else "h:mm a")
                 Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("${schedule.time.format(clock)} – ${schedule.time.plusMinutes(schedule.minutes.toLong()).format(clock)}",
-                        Modifier.background(Lavender, CircleShape).padding(horizontal = 10.dp, vertical = 2.dp),
-                        color = Purple, fontSize = 12.sp)
+                        Modifier.background(AccentSurface, CircleShape).padding(horizontal = 10.dp, vertical = 2.dp),
+                        color = Accent, fontSize = 12.sp)
                     Spacer(Modifier.weight(1f))
                     Text(if (schedule.repeat.isEmpty()) "One-time" else "Repeats weekly", color = Muted, fontSize = 12.sp)
                 }
@@ -138,7 +141,7 @@ internal fun PlannerPage(
             }
         }
         if (locked || itemsForDay.isNotEmpty()) item {
-            Surface(Modifier.fillMaxWidth(), color = if (locked) Lavender else Night, shape = CardShape,
+            Surface(Modifier.fillMaxWidth(), color = if (locked) AccentSurface else Night, shape = CardShape,
                 border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Column(Modifier.padding(16.dp)) {
                     Text(if (locked) "Locked during strict focus" else "Your timer stays yours.",
@@ -223,10 +226,10 @@ private fun ScheduleDialog(
                         val selected = weekday in selectedDays
                         val label = weekday.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
                         Box(Modifier.weight(1f).aspectRatio(1f).clip(CircleShape)
-                            .background(if (selected) Purple else OrbitSurface).selectable(selected, role = Role.Checkbox) {
+                            .background(if (selected) Accent else OrbitSurface).selectable(selected, role = Role.Checkbox) {
                                 days = days xor (1 shl weekday.ordinal)
                             }.semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
-                            Text(label.take(1), color = if (selected) OnAccent else Muted, fontWeight = FontWeight.SemiBold)
+                            Text(label.take(2), color = if (selected) OnAccent else Muted, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }

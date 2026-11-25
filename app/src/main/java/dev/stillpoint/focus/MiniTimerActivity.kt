@@ -37,12 +37,12 @@ class MiniTimerActivity : ComponentActivity() {
         val state = TextView(this).apply {
             gravity = Gravity.CENTER
             textSize = 14f
-            setTextColor(Color.rgb(218, 201, 248))
+            setTextColor(Color.rgb(255, 188, 172))
         }
         setContentView(LinearLayout(this).apply {
             gravity = Gravity.CENTER
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(16, 19, 24))
+            setBackgroundColor(Color.rgb(23, 22, 50))
             addView(time, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 56f, resources.displayMetrics).toInt()

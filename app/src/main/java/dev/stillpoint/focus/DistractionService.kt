@@ -457,9 +457,9 @@ class DistractionService : AccessibilityService() {
         val view = TextView(this).apply {
             text = reason
             textSize = 16f
-            setTextColor(Color.rgb(215, 197, 251))
+            setTextColor(Color.rgb(255, 188, 172))
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.rgb(16, 19, 24))
+            setBackgroundColor(Color.rgb(23, 22, 50))
             setPadding(dp(8), dp(8), dp(8), dp(8))
             isClickable = true
         }

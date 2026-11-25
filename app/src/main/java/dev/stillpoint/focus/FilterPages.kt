@@ -65,7 +65,7 @@ internal fun ContentRulesDialog(
                     !editable -> "These rules are locked."
                     enabled -> "Accessibility is on · rules are enforced"
                     else -> "Needs Accessibility · rules not enforced"
-                }, color = Purple, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                }, color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 OutlinedTextField(blocked, { blocked = it.take(4000) }, enabled = editable, isError = invalidBlocked,
                     label = { Text("Always blocked sites") }, placeholder = { Text("example.com") }, maxLines = 4,
                     supportingText = { Text(if (invalidBlocked) "Enter valid domains or URLs." else "One domain or URL per line.") })
@@ -82,7 +82,7 @@ internal fun ContentRulesDialog(
                     if (downloading) {
                         LinearProgressIndicator(
                             Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
-                            color = Purple, trackColor = OrbitTrack
+                            color = Accent, trackColor = OrbitTrack
                         )
                     } else {
                         OrbitButton(stringResource(if (downloadFailed) R.string.adult_catalog_retry else R.string.adult_catalog_download), {
@@ -182,9 +182,9 @@ internal fun ScreenTimePanel(
         Row(Modifier.fillMaxWidth().padding(top = 9.dp, bottom = 5.dp).clip(FieldShape).background(Night)) {
             listOf("Today", "Last 7 days").forEachIndexed { index, label ->
                 val selected = weekly == (index == 1)
-                Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(FieldShape).background(if (selected) Lavender else Night)
+                Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(FieldShape).background(if (selected) AccentSurface else Night)
                     .selectable(selected, enabled = access) { weekly = index == 1 }, contentAlignment = Alignment.Center) {
-                    Text(label, color = Purple, fontSize = 12.sp)
+                    Text(label, color = Accent, fontSize = 12.sp)
                 }
             }
         }
@@ -206,16 +206,24 @@ internal fun ScreenTimePanel(
                     Text(if (weekly) "Avg. ${usageLabel(sum / 7)} / day" else "Total device usage",
                         Modifier.weight(1f), color = Muted, fontSize = 11.sp)
                 }
-                val grouped = remember(entries, store) { entries.entries.groupBy { store.rule(it.key).tag } }
+                val totals = entries.entries.groupBy { store.rule(it.key).tag }
+                    .mapValues { (_, apps) -> apps.sumOf { it.value } }
+                val tags = listOf(AppTag.PRODUCTIVE to Forest, AppTag.DISTRACTING to androidx.compose.ui.graphics.Color(0xFFAC4C32),
+                    AppTag.UNTAGGED to ChartSage)
+                Row(Modifier.fillMaxWidth().padding(top = 12.dp).height(12.dp).clip(CircleShape).background(Night)) {
+                    tags.forEach { (tag, color) ->
+                        val duration = totals[tag] ?: 0L
+                        if (duration > 0) Spacer(Modifier.weight(duration.toFloat()).fillMaxHeight().background(color))
+                    }
+                }
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                    listOf(AppTag.PRODUCTIVE, AppTag.DISTRACTING, AppTag.UNTAGGED).forEach { tag ->
+                    tags.forEach { (tag, color) ->
                         Column(Modifier.weight(1f)) {
-                            Text("● ${tag.label}", color = when (tag) {
-                                AppTag.PRODUCTIVE -> Forest
-                                AppTag.DISTRACTING -> androidx.compose.ui.graphics.Color(0xFFF6AD76)
-                                AppTag.UNTAGGED -> Muted
-                            }, fontSize = 11.sp)
-                            Text(usageLabel(grouped[tag].orEmpty().sumOf { it.value }), color = Ink, fontSize = 13.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Spacer(Modifier.size(6.dp).background(color, CircleShape))
+                                Text(tag.label, Modifier.padding(start = 4.dp), color = Muted, fontSize = 11.sp)
+                            }
+                            Text(usageLabel(totals[tag] ?: 0L), color = Ink, fontSize = 13.sp)
                         }
                     }
                 }

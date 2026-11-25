@@ -22,10 +22,10 @@ internal fun blockCoverView(
     goHome: (() -> Unit)? = null,
     openApp: (() -> Unit)? = null
 ): LinearLayout {
-    val foreground = Color.rgb(245, 245, 243)
-    val muted = Color.rgb(167, 171, 183)
-    val accent = Color.rgb(215, 197, 251)
-    val secondary = Color.rgb(35, 35, 52)
+    val foreground = Color.rgb(255, 249, 246)
+    val muted = Color.rgb(198, 197, 221)
+    val accent = Color.rgb(255, 188, 172)
+    val secondary = Color.rgb(54, 51, 85)
     fun dp(value: Int) = (value * context.resources.displayMetrics.density + 0.5f).toInt()
     fun LinearLayout.space(units: Float) {
         addView(View(context), LinearLayout.LayoutParams(1, 0, units))
@@ -45,7 +45,7 @@ internal fun blockCoverView(
             isAllCaps = false
             textSize = 14f
             typeface = context.resources.getFont(R.font.inter_semibold)
-            setTextColor(if (primary) Color.rgb(36, 27, 53) else accent)
+            setTextColor(if (primary) Color.rgb(33, 30, 56) else accent)
             background = GradientDrawable().apply {
                 setColor(if (primary) accent else if (filled) secondary else Color.TRANSPARENT)
                 cornerRadius = dp(26).toFloat()
@@ -58,7 +58,7 @@ internal fun blockCoverView(
         gravity = Gravity.CENTER_HORIZONTAL
         isClickable = true
         setPadding(dp(24), dp(24), dp(24), dp(16))
-        setBackgroundColor(Color.rgb(16, 19, 24))
+        setBackgroundColor(Color.rgb(23, 22, 50))
 
         space(1f)
         addView(ImageView(context).apply {

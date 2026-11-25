@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-25T09:06:24.929699+00:00",
+  "title": "StudyOrbit",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Indigo"
+      },
+      "chart-lavender": {
+        "role": "secondary",
+        "displayName": "Chart lavender"
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Warm paper"
+      },
+      "coral": {
+        "role": "secondary",
+        "displayName": "Poster coral"
+      },
+      "overlay": {
+        "role": "neutral",
+        "displayName": "Midnight"
+      }
+    },
+    "typographyMeta": {
+      "field": {
+        "displayName": "Field value",
+        "purpose": "Editable text and duration entries."
+      },
+      "button": {
+        "displayName": "Button label",
+        "purpose": "Actions in sessions, schedules and protection settings."
+      },
+      "heading": {
+        "displayName": "Destination heading",
+        "purpose": "Identify the active screen."
+      }
+    }
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Submits or confirms an action on a light surface.",
+      "html": "<button>Save duration</button>",
+      "css": "button { box-sizing: border-box; min-height: 52px; width: 100%; padding: 9px 10px; background: #4541A0; color: #FFFFFF; border: 0; border-radius: 14px; font: 600 14px Inter, sans-serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Space travel posters",
+    "overview": "Four illustrated posters lead the app destinations. Native text and actions sit over their artwork, with supporting content on warm paper.",
+    "keyCharacteristics": [
+      "Illustrated destination panels",
+      "Indigo on warm paper",
+      "Coral start control",
+      "Midnight native overlays"
+    ],
+    "rules": [
+      {
+        "name": "Weekly chart",
+        "body": "Highlight today in indigo and earlier days in lavender.",
+        "section": "colors"
+      },
+      {
+        "name": "Stable digits",
+        "body": "Use tabular timer numerals.",
+        "section": "typography"
+      }
+    ]
+  }
+}

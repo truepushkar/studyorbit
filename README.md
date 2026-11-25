@@ -19,7 +19,7 @@ Get the optimized APK from the [latest GitHub release](https://github.com/truepu
 
 | Focus | Block | Planner | Progress |
 | --- | --- | --- | --- |
-| <img src="docs/screenshots/focus.png" width="185" alt="Focus tab with the orbit timer and study controls"> | <img src="docs/screenshots/block.png" width="185" alt="Block tab with distraction controls and study rules"> | <img src="docs/screenshots/planner.png" width="185" alt="Planner tab with the weekly study calendar"> | <img src="docs/screenshots/progress.png" width="185" alt="Progress tab with the daily goal, weekly study time, and screen time"> |
+| <img src="docs/screenshots/focus.png" width="185" alt="Focus tab with the illustrated observatory timer, duration presets, and start button"> | <img src="docs/screenshots/block.png" width="185" alt="Block tab with distraction controls and study rules"> | <img src="docs/screenshots/planner.png" width="185" alt="Planner tab with the weekly study calendar"> | <img src="docs/screenshots/progress.png" width="185" alt="Progress tab with the daily goal, weekly study time, and screen time"> |
 
 ## Build
 

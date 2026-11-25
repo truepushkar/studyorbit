@@ -2,8 +2,6 @@ package dev.stillpoint.focus
 
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -59,7 +57,6 @@ internal fun BlockPage(
     var usageReadAt by remember(today, usageAccess) { mutableLongStateOf(-MINUTE) }
     var query by rememberSaveable { mutableStateOf("") }
     var screen by rememberSaveable { mutableStateOf("rules") }
-    var searchOnOpen by remember { mutableStateOf(false) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var contentDialog by rememberSaveable { mutableStateOf(false) }
     var version by remember { mutableIntStateOf(0) }
@@ -128,15 +125,8 @@ internal fun BlockPage(
             Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = orbitTopPadding())) {
                 BlockSubpageTitle("Choose apps", ::closePage)
                 Spacer(Modifier.height(15.dp))
-                val searchFocus = remember { FocusRequester() }
-                OrbitField("Search installed apps", query, { query = it }, Modifier.fillMaxWidth().focusRequester(searchFocus),
+                OrbitField("Search installed apps", query, { query = it }, Modifier.fillMaxWidth(),
                     placeholder = "App name")
-                LaunchedEffect(searchOnOpen) {
-                    if (searchOnOpen) {
-                        searchFocus.requestFocus()
-                        searchOnOpen = false
-                    }
-                }
                 Spacer(Modifier.height(23.dp))
                 Text("Eligible apps" + (apps?.let { " · ${it.size} results" } ?: ""),
                     color = Muted, fontSize = 13.sp)
@@ -192,25 +182,24 @@ internal fun BlockPage(
             } else {
                 if (!showCatalog) {
                     item {
-                        Column(Modifier.fillMaxWidth().clip(CardShape).background(Lavender)
-                            .border(1.dp, Line, CardShape).padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp)) {
-                            OrbitHeading("Whole-app protection", size = 19)
-                            val enabled = appProtection && protectionReady
-                            ProtectionStatus(when {
-                                enabled -> "Protection on"
-                                protectionReady -> "Ready to turn on"
-                                else -> "Setup needed"
-                            }, enabled, Modifier.padding(top = 5.dp))
-                            Text("Block selected apps during focus or when they reach a daily limit.",
-                                Modifier.padding(top = 10.dp, bottom = 10.dp), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
-                            OrbitButton(when {
-                                enabled -> "Manage protection"
-                                protectionReady -> "Turn on protection"
-                                else -> "Set up protection"
-                            }, onAppProtection, Modifier.fillMaxWidth(), enabled = !locked)
+                        val enabled = appProtection && protectionReady
+                        AtlasPanel(R.drawable.atlas_block) {
+                            Column(Modifier.fillMaxWidth().padding(18.dp)) {
+                                Text("App protection", color = androidx.compose.ui.graphics.Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                                Text(when {
+                                    enabled -> "Protection on"
+                                    protectionReady -> "Ready to turn on"
+                                    else -> "Setup needed"
+                                }, color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp)
+                                Spacer(Modifier.height(30.dp))
+                                Button(onClick = onAppProtection, enabled = !locked,
+                                    colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFBAF3DA), contentColor = Ink)) {
+                                    Text(if (enabled) "Manage protection" else if (protectionReady) "Turn on protection" else "Set up protection")
+                                }
+                            }
                         }
                         if (locked) Text("Strict session active · rules are read-only",
-                            Modifier.padding(top = 12.dp), color = Purple, fontSize = 13.sp)
+                            Modifier.padding(top = 12.dp), color = Accent, fontSize = 13.sp)
                     }
                     item {
                         OrbitHeading("App rules", Modifier.padding(top = 15.dp), 19)
@@ -259,7 +248,7 @@ internal fun BlockPage(
                             .heightIn(min = 76.dp).padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)).background(Lavender)) {
+                        Box(Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)).background(AccentSurface)) {
                             icon?.let { Image(it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
                         }
                         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
@@ -267,15 +256,13 @@ internal fun BlockPage(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(description, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
                         }
-                        Text("›", color = Purple, fontSize = 23.sp)
+                        Text("›", color = Accent, fontSize = 23.sp)
                     }
                 }
                 if (!showCatalog) {
                     item {
-                        Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OrbitButton("Search installed apps", { searchOnOpen = true; screen = "catalog"; onSubpage(true) }, Modifier.weight(1.75f), primary = false)
-                            OrbitButton("Browse all apps", { screen = "catalog"; onSubpage(true) }, Modifier.weight(1f), primary = false)
-                        }
+                        OrbitButton("Choose apps", { screen = "catalog"; onSubpage(true) },
+                            Modifier.fillMaxWidth(), primary = false)
                     }
                     item {
                         OrbitHeading("Advanced filters", Modifier.padding(top = 22.dp), 19)
@@ -292,7 +279,7 @@ internal fun BlockPage(
                                     Text("Short videos, websites & YouTube", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                     Text("Reels, Shorts, Spotlight and study rules", color = Muted, fontSize = 12.sp)
                                 }
-                                Text("›", Modifier.padding(start = 12.dp), color = Purple, fontSize = 23.sp)
+                                Text("›", Modifier.padding(start = 12.dp), color = Accent, fontSize = 23.sp)
                             }
                         }
                         Text(
@@ -328,7 +315,7 @@ internal fun BlockPage(
 
 @Composable
 private fun ProtectionStatus(label: String, active: Boolean, modifier: Modifier = Modifier) {
-    val color = if (active) Forest else Purple
+    val color = if (active) Forest else Accent
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(6.dp).background(color, CircleShape))
         Text(label, color = color, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold)
@@ -342,7 +329,7 @@ internal fun BlockSubpageTitle(title: String, onClose: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         OrbitHeading(title, Modifier.weight(1f))
         IconButton(onClick = onClose) {
-            Text("×", Modifier.semantics { contentDescription = "Close" }, color = Purple, fontSize = 25.sp)
+            Text("×", Modifier.semantics { contentDescription = "Close" }, color = Accent, fontSize = 25.sp)
         }
     }
 }
@@ -365,7 +352,7 @@ private fun RuleDialog(
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             BlockSubpageTitle(if (editable) "${app.name} rule" else "Rules are locked", onDismiss)
             if (editable) {
-                Text(app.name, color = Purple, fontWeight = FontWeight.SemiBold)
+                Text(app.name, color = Accent, fontWeight = FontWeight.SemiBold)
                 Panel {
                     ToggleRule("Block during focus", "Also applies to scheduled focus-rule windows.", focusOnly) { focusOnly = it }
                 }
@@ -412,7 +399,7 @@ internal fun ToggleRule(title: String, details: String, enabled: Boolean, editab
         }
         Switch(checked = enabled, enabled = editable, onCheckedChange = onChange,
             modifier = Modifier.semantics { contentDescription = title },
-            colors = SwitchDefaults.colors(checkedThumbColor = OrbitSurface, checkedTrackColor = Purple,
+            colors = SwitchDefaults.colors(checkedThumbColor = OrbitSurface, checkedTrackColor = Accent,
                 uncheckedThumbColor = OrbitSurface, uncheckedTrackColor = Line, uncheckedBorderColor = Line))
     }
 }
@@ -440,70 +427,45 @@ internal fun ProgressPage(
         verticalArrangement = Arrangement.spacedBy(17.dp)
     ) {
         item {
-            Column(Modifier.fillMaxWidth().clip(CardShape).background(Lavender)
-                .border(1.dp, Line, CardShape).padding(horizontal = 17.dp, vertical = 13.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("DAILY STUDY GOAL", Modifier.weight(1f), color = Purple, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                    Text(if (streak == 0) "A fresh start" else "$streak day streak",
-                        Modifier.background(OrbitSurface, CircleShape).padding(horizontal = 19.dp, vertical = 2.dp),
-                        color = Purple, fontSize = 11.sp)
+            AtlasPanel(R.drawable.atlas_progress) {
+                Column(Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Brush.horizontalGradient(
+                    listOf(androidx.compose.ui.graphics.Color(0xE222305B), androidx.compose.ui.graphics.Color.Transparent)
+                )).padding(18.dp)) {
+                    val white = androidx.compose.ui.graphics.Color.White
+                    Text("Today’s study goal", color = white, fontWeight = FontWeight.SemiBold)
+                    Text("$total / $goal min", color = white, fontSize = 34.sp, lineHeight = 44.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(18.dp))
+                    LinearProgressIndicator(progress = { (total.toFloat() / goal).coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
+                        color = white, trackColor = androidx.compose.ui.graphics.Color(0xFF505E85), drawStopIndicator = {})
+                    if (streak > 0) Text("$streak day streak", Modifier.padding(top = 6.dp), color = white)
                 }
-                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(total.toString(), color = Ink, fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.SemiBold)
-                    Text("/ $goal min", color = Muted, fontSize = 16.sp)
-                }
-                LinearProgressIndicator(progress = { (total.toFloat() / goal).coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
-                    color = Purple, trackColor = OrbitTrack, drawStopIndicator = {})
-                Text(when {
-                    total >= goal -> "You reached today’s target"
-                    total == 0 -> "Your first minute starts a new orbit."
-                    else -> "${goal - total} minutes to your daily target"
-                }, Modifier.padding(top = 3.dp), color = Purple, fontSize = 12.sp)
             }
         }
         item {
             Panel {
-                Text("Last 7 days · study time", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Row(Modifier.fillMaxWidth().padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("$weekTotal min", Modifier.weight(1f), color = Ink, fontWeight = FontWeight.SemiBold,
-                        fontSize = 28.sp, lineHeight = 34.sp)
-                    Text("$weekSessions ${if (weekSessions == 1) "session" else "sessions"}",
-                        Modifier.weight(.49f), color = Muted, fontSize = 12.sp)
-                }
-                if (weekTotal == 0) {
-                    Text("Your first session begins the story.", Modifier.padding(top = 12.dp, bottom = 9.dp), color = Muted, fontSize = 13.sp)
-                    OrbitButton("Start a focus session", onFocus, Modifier.fillMaxWidth(), primary = false)
-                } else {
-                    Spacer(Modifier.height(17.dp))
-                    val maximum = week.maxOf { it.second }
-                    Row(Modifier.fillMaxWidth()) {
-                        week.forEach { (date, minutes) ->
-                            val label = date.format(DateTimeFormatter.ofPattern("EEEE", Locale.getDefault()))
-                            Column(Modifier.weight(1f).semantics(mergeDescendants = true) {
-                                contentDescription = "$label, $minutes minutes"
-                            }, horizontalAlignment = Alignment.CenterHorizontally) {
-                                Box(Modifier.height(58.dp).width(24.dp), contentAlignment = Alignment.BottomCenter) {
-                                    if (minutes > 0) Box(Modifier.fillMaxWidth()
-                                        .fillMaxHeight((minutes.toFloat() / maximum).coerceAtLeast(0.08f))
-                                        .background(if (date == today) Purple else Lilac, RoundedCornerShape(6.dp)))
-                                }
-                                Text(label.take(1), Modifier.padding(top = 7.dp), color = Muted, fontSize = 12.sp)
-                            }
-                        }
-                    }
-                }
+                Text("Study rhythm", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Last 7 days · $weekTotal min · $weekSessions ${if (weekSessions == 1) "session" else "sessions"}",
+                    color = Muted, fontSize = 13.sp)
+                WeeklyStudyChart(week)
+                if (weekTotal == 0) OrbitButton("Start a focus session", onFocus, Modifier.fillMaxWidth(), primary = false)
             }
         }
         item { ScreenTimePanel(apps, store, usageAccess, today, onUsageAccess) }
         item {
             Text("Recent sessions", Modifier.semantics { heading() }, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            if (recent.isEmpty()) Text("No sessions yet. Your first one belongs here.", color = Muted, fontSize = 12.sp)
+            if (recent.isEmpty()) Text("Completed study sessions will appear here.", color = Muted, fontSize = 12.sp)
         }
         items(recent) { session ->
             val name = session.subject.ifBlank { "Focus session" }
             val date = session.day.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
-            Text("$name · $date · ${session.minutes} min", color = Muted, fontSize = 12.sp)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(name, color = Ink)
+                    Text(date, color = Muted, fontSize = 12.sp)
+                }
+                Text("${session.minutes} min", color = Accent, fontWeight = FontWeight.Medium)
+            }
         }
     }
 }
@@ -521,9 +483,9 @@ private fun VideoRule(title: String, mode: Int, editable: Boolean, onMode: (Int)
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        label, Modifier.background(if (selected) Lavender else OrbitSurface, CircleShape)
+                        label, Modifier.background(if (selected) AccentSurface else OrbitSurface, CircleShape)
                             .padding(horizontal = 8.dp, vertical = 5.dp),
-                        color = if (selected && editable) Purple else Muted,
+                        color = if (selected && editable) Accent else Muted,
                         fontSize = 12.sp, lineHeight = 16.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }

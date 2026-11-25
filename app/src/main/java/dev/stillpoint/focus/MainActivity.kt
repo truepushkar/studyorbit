@@ -70,8 +70,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         )
         val store = FocusStore(this)
         val apps = DeviceApps(this)
@@ -122,11 +122,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Destination(val label: String, val subtitle: String, val icon: Int, val selectedIcon: Int) {
-    FOCUS("Focus", "A little space to do your best work.", R.drawable.fig_focus, R.drawable.fig_focus_active),
-    BLOCK("Block", "Protect your attention, on your terms.", R.drawable.fig_block, R.drawable.fig_block_active),
-    PLANNER("Planner", "A little structure. More room to focus.", R.drawable.fig_planner, R.drawable.fig_planner_active),
-    PROGRESS("Progress", "Small sessions. A growing habit.", R.drawable.fig_progress, R.drawable.fig_progress_active)
+private enum class Destination(val label: String, val icon: Int, val selectedIcon: Int) {
+    FOCUS("Focus", R.drawable.fig_focus, R.drawable.fig_focus_active),
+    BLOCK("Block", R.drawable.fig_block, R.drawable.fig_block_active),
+    PLANNER("Planner", R.drawable.fig_planner, R.drawable.fig_planner_active),
+    PROGRESS("Progress", R.drawable.fig_progress, R.drawable.fig_progress_active)
 }
 
 @Composable
@@ -314,8 +314,8 @@ private fun StudyOrbit(
 
     val background = if (destination == Destination.FOCUS && !settings) theme.pageColor else Paper
     MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Purple, onPrimary = OnAccent, primaryContainer = Lavender, onPrimaryContainer = Purple,
+        colorScheme = lightColorScheme(
+            primary = Accent, onPrimary = OnAccent, primaryContainer = AccentSurface, onPrimaryContainer = Accent,
             background = Paper, onBackground = Ink, surface = OrbitSurface, onSurface = Ink,
             surfaceVariant = Night, onSurfaceVariant = Muted, outline = Line, outlineVariant = Line
         ),
@@ -324,7 +324,7 @@ private fun StudyOrbit(
         Surface(Modifier.fillMaxSize(), color = background, contentColor = Ink) {
             Column(Modifier.fillMaxSize().orbitInsets(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Column(Modifier.widthIn(max = 580.dp).fillMaxWidth().weight(1f)) {
-                    if (!secondaryPage) AppHeader(destination, active, result, resultKind,
+                    if (!secondaryPage) AppHeader(destination, active,
                         onTimer = { destination = Destination.FOCUS }, onSettings = { settings = true })
                     tabState.SaveableStateProvider(destination.name) {
                         when (destination) {
@@ -489,7 +489,7 @@ private fun StudyOrbit(
                 color = Muted, fontSize = 16.sp, lineHeight = 23.sp)
             Spacer(Modifier.height(22.dp))
             Text("$focusMinutes-minute focus" + if (subject.isBlank()) "" else " · $subject",
-                color = Purple, fontWeight = FontWeight.SemiBold)
+                color = Accent, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(28.dp))
             OrbitButton("Start strict session", { strictConfirmation = false; launchSession(focusMinutes) }, Modifier.fillMaxWidth())
             OrbitButton("Not now", { strictConfirmation = false }, Modifier.fillMaxWidth(), primary = false, rounded = false)
@@ -535,17 +535,9 @@ private fun StudyOrbit(
 
 @Composable
 private fun AppHeader(
-    destination: Destination, session: Session?, result: Int, resultKind: FocusResult,
+    destination: Destination, session: Session?,
     onTimer: () -> Unit, onSettings: () -> Unit
 ) {
-    val subtitle = when {
-        destination != Destination.FOCUS -> destination.subtitle
-        session != null -> "Your next little orbit starts here."
-        result >= 0 && resultKind == FocusResult.ENDED -> "Your unfinished countdown wasn’t saved."
-        result >= 0 && resultKind == FocusResult.BREAK -> "A little space before your next orbit."
-        result >= 0 -> "One orbit closer to your goal."
-        else -> destination.subtitle
-    }
     Row(
         Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = orbitTopPadding(), bottom = 19.dp),
         verticalAlignment = Alignment.Top
@@ -554,13 +546,11 @@ private fun AppHeader(
             OrbitHeading(destination.label)
             if (destination != Destination.FOCUS && session != null) {
                 ActiveTimerLink(session, onTimer)
-            } else {
-                Text(subtitle, color = Muted, fontSize = 14.sp, lineHeight = 19.sp)
             }
         }
-        IconButton(onClick = onSettings, modifier = Modifier.offset(y = (-8).dp)) {
-            Image(painterResource(if (destination == Destination.FOCUS) R.drawable.fig_sun_active else R.drawable.fig_sun),
-                contentDescription = "Settings", modifier = Modifier.size(24.dp))
+        IconButton(onClick = onSettings, modifier = Modifier.background(OrbitSurface, CircleShape)) {
+            Image(painterResource(R.drawable.fig_sun),
+                contentDescription = "Settings", modifier = Modifier.size(24.dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Ink))
         }
     }
 }
@@ -578,28 +568,30 @@ private fun ActiveTimerLink(session: Session, onTimer: () -> Unit) {
         else -> "Focus running"
     }
     Text("$status · ${timerDigits(time.value ?: session.remaining, stopwatch)}  → Return to timer",
-        Modifier.clickable(onClick = onTimer, role = Role.Button), color = Purple, fontSize = 14.sp, lineHeight = 19.sp)
+        Modifier.clickable(onClick = onTimer, role = Role.Button), color = Accent, fontSize = 14.sp, lineHeight = 19.sp)
 }
 
 @Composable
 private fun BottomTabs(current: Destination, onSelect: (Destination) -> Unit) {
     Surface(
-        modifier = Modifier.widthIn(max = 580.dp).fillMaxWidth().padding(horizontal = 24.dp),
-        shape = CircleShape, color = OrbitSurface, border = BorderStroke(1.dp, Line)
+        modifier = Modifier.widthIn(max = 580.dp).fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 5.dp, bottom = 6.dp),
+        shape = RoundedCornerShape(29.dp), color = Ink, shadowElevation = 4.dp
     ) {
-        Row(Modifier.selectableGroup().padding(5.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.selectableGroup().padding(5.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             Destination.entries.forEach { tab ->
                 val selected = tab == current
                 Column(
-                    modifier = Modifier.weight(1f).heightIn(min = 58.dp).clip(CircleShape)
-                        .background(if (selected) Lavender else Color.Transparent)
+                    modifier = Modifier.weight(1f).heightIn(min = 58.dp).clip(RoundedCornerShape(24.dp))
+                        .background(if (selected) Color(0xFFE6DEFF) else Color.Transparent)
                         .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(tab) })
                         .padding(horizontal = 3.dp, vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically)
                 ) {
-                    Image(painterResource(if (selected) tab.selectedIcon else tab.icon), null, Modifier.size(22.dp))
-                    Text(tab.label, color = if (selected) Purple else Muted, fontSize = 11.sp, lineHeight = 14.sp,
+                    Image(painterResource(if (selected) tab.selectedIcon else tab.icon), null, Modifier.size(22.dp),
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(if (selected) Ink else Color(0xFFE1DEEE)))
+                    Text(tab.label, color = if (selected) Ink else Color(0xFFE1DEEE), fontSize = 11.sp, lineHeight = 14.sp,
                         textAlign = TextAlign.Center, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
                 }
             }
@@ -633,7 +625,7 @@ private fun SettingsDialog(
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             IconButton(onClick = onDismiss, modifier = Modifier.offset(x = (-17).dp)) {
-                Text("‹", Modifier.semantics { contentDescription = "Back" }, color = Purple, fontSize = 28.sp)
+                Text("‹", Modifier.semantics { contentDescription = "Back" }, color = Accent, fontSize = 28.sp)
             }
             Row(
                 Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
@@ -684,7 +676,7 @@ private fun <T> PreferenceChoice(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(label, Modifier.weight(1.25f), color = Ink, fontSize = 14.sp)
-            Text(current, Modifier.weight(1f), color = Purple, fontSize = 14.sp)
+            Text(current, Modifier.weight(1f), color = Accent, fontSize = 14.sp)
         }
         DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
             options.forEach { item ->
