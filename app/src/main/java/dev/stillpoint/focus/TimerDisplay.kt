@@ -1,14 +1,16 @@
 package dev.stillpoint.focus
 
-import java.util.Locale
-
 internal fun timerDigits(milliseconds: Long, stopwatch: Boolean): String {
-    val seconds = if (stopwatch) milliseconds / 1_000 else (milliseconds + 999) / 1_000
+    val seconds = milliseconds / 1_000 + if (!stopwatch && milliseconds % 1_000 != 0L) 1 else 0
     val hours = if (stopwatch) seconds / 3_600 else 0
-    return if (hours > 0) {
-        String.format(Locale.ROOT, "%d:%02d:%02d", hours, seconds / 60 % 60, seconds % 60)
-    } else {
-        String.format(Locale.ROOT, "%02d:%02d", seconds / 60, seconds % 60)
+    val minutes = if (hours > 0) seconds / 60 % 60 else seconds / 60
+    val remainder = seconds % 60
+    return buildString {
+        if (hours > 0) append(hours).append(':')
+        if (minutes < 10) append('0')
+        append(minutes).append(':')
+        if (remainder < 10) append('0')
+        append(remainder)
     }
 }
 

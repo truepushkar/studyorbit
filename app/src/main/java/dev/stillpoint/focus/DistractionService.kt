@@ -252,8 +252,8 @@ class DistractionService : AccessibilityService() {
             return
         }
         val now = SystemClock.elapsedRealtime()
-        val session = store.session()
         val focusRules = focusPackages.isNotEmpty() || videoModes.containsValue(1) || content.browserStudy || content.youtubeStudy
+        val session = if (focusRules) store.session() else null
         if (focusRules && session?.running == true && session.mode != TimerMode.STOPWATCH) {
             recheckIn(session.displayTime(now))
         }

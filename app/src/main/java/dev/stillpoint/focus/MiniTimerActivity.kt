@@ -2,6 +2,7 @@ package dev.stillpoint.focus
 
 import android.app.PictureInPictureParams
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
@@ -15,8 +16,9 @@ import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class MiniTimerActivity : ComponentActivity() {
     private var attempted = false
@@ -49,18 +51,41 @@ class MiniTimerActivity : ComponentActivity() {
         })
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                while (true) {
-                    val session = store.session()
-                    if (session == null) { finish(); break }
-                    val remaining = session.displayTime()
-                    val elapsed = session.mode == TimerMode.STOPWATCH
-                    time.text = timerDigits(remaining, elapsed)
-                    state.setText(when {
-                        !session.running -> R.string.mini_timer_paused
-                        session.phase == Phase.BREAK -> R.string.mini_timer_break
-                        else -> R.string.mini_timer_focus
-                    })
-                    delay(if (session.running) timerTickDelay(remaining, elapsed) else 1_000)
+                val changes = Channel<Unit>(Channel.CONFLATED)
+                val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                    if (isSessionPreference(key)) changes.trySend(Unit)
+                }
+                store.prefs.registerOnSharedPreferenceChangeListener(listener)
+                try {
+                    var session = store.session()
+                    var shownStatus = 0
+                    while (session != null) {
+                        val remaining = session.displayTime()
+                        val elapsed = session.mode == TimerMode.STOPWATCH
+                        time.text = timerDigits(remaining, elapsed)
+                        val status = when {
+                            !session.running -> R.string.mini_timer_paused
+                            session.phase == Phase.BREAK -> R.string.mini_timer_break
+                            else -> R.string.mini_timer_focus
+                        }
+                        if (shownStatus != status) {
+                            state.setText(status)
+                            shownStatus = status
+                        }
+                        if (!session.running) {
+                            changes.receive()
+                            session = store.session()
+                        } else {
+                            val atEnd = !elapsed && remaining == 0L
+                            val delay = if (atEnd) 1L else timerTickDelay(remaining, elapsed)
+                            val changed = withTimeoutOrNull(delay) { changes.receive() } != null
+                            if (changed || atEnd) session = store.session()
+                        }
+                    }
+                    finish()
+                } finally {
+                    store.prefs.unregisterOnSharedPreferenceChangeListener(listener)
+                    changes.close()
                 }
             }
         }

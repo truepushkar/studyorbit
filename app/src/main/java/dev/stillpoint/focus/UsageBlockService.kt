@@ -91,6 +91,8 @@ class UsageBlockService : Service() {
     private suspend fun protect() {
         var rules = emptyMap<String, AppRule>()
         var schedules = emptyList<StudySchedule>()
+        var focusRules = false
+        var hasDailyLimits = false
         var schedule: ScheduledFocus? = null
         var foreground: String? = null
         var cursor = 0L
@@ -103,7 +105,9 @@ class UsageBlockService : Service() {
             if (planDirty) {
                 planDirty = false
                 rules = store.configuredRules().filterValues { it.focusOnly || it.dailyMinutes > 0 }
-                schedules = readSchedules(store.prefs)
+                focusRules = rules.values.any { it.focusOnly }
+                hasDailyLimits = rules.values.any { it.dailyMinutes > 0 }
+                schedules = if (focusRules) readSchedules(store.prefs) else emptyList()
                 schedule = null
             }
             if (resetCursor) {
@@ -113,15 +117,14 @@ class UsageBlockService : Service() {
                 measuredAt = 0L
             }
             val now = System.currentTimeMillis()
-            val session = store.session()
+            val session = if (focusRules) store.session() else null
             val localDay = LocalDate.now()
             if (localDay != day) { day = localDay; measuredAt = 0L; usage = emptyMap() }
-            val focusRules = rules.values.any { it.focusOnly }
             if (focusRules && (schedule == null || schedule.nextChange?.toEpochMilli()?.let { it <= now } == true)) {
                 schedule = scheduledFocus(schedules, ZonedDateTime.now())
             }
             val studying = (session?.running == true && session.phase == Phase.FOCUS) || schedule?.active == true
-            if (!screenReady || rules.values.none { it.dailyMinutes > 0 || (it.focusOnly && studying) }) {
+            if (!screenReady || (!hasDailyLimits && !(focusRules && studying))) {
                 clearCover()
                 cursor = 0L
                 foreground = null
@@ -144,14 +147,17 @@ class UsageBlockService : Service() {
             if (current != null && rule != null && withContext(Dispatchers.IO) { apps.canBlock(current) }) {
                 val limit = rule.dailyMinutes * MINUTE
                 val untilLimit = limit - usage.getOrDefault(current, 0)
-                if (limit > 0 && (measuredAt == 0L || now - measuredAt >= untilLimit.coerceIn(2_000L, 30_000L))) {
+                val focusBlocked = rule.focusOnly && studying
+                if (!focusBlocked && limit > 0 &&
+                    (measuredAt == 0L || now - measuredAt >= untilLimit.coerceIn(2_000L, 30_000L))
+                ) {
                     usage = withContext(Dispatchers.IO) {
                         try { apps.usageSince(localDay).orEmpty() } catch (_: SecurityException) { emptyMap() }
                     }
                     measuredAt = now
                 }
                 val reason = when {
-                    rule.focusOnly && studying -> "Blocked during focus"
+                    focusBlocked -> "Blocked during focus"
                     limit > 0 && usage.getOrDefault(current, 0) >= limit -> "Daily limit reached"
                     else -> null
                 }
@@ -167,7 +173,7 @@ class UsageBlockService : Service() {
 
     @Suppress("DEPRECATION")
     private fun readForeground(start: Long, end: Long, previous: String?): String? {
-        val events = systemUsage.queryEvents(start.coerceAtMost(end), end) ?: return null
+        val events = systemUsage.queryRelevantEvents(start, end) ?: return null
         val event = UsageEvents.Event()
         var active = previous
         while (events.hasNextEvent() && events.getNextEvent(event)) {

@@ -1,6 +1,6 @@
 # StudyOrbit
 
-StudyOrbit is an offline Android app for focus sessions and distraction blocking. It uses Kotlin and Jetpack Compose and does not require an account.
+StudyOrbit is an Android app for focus sessions and distraction blocking. It uses Kotlin and Jetpack Compose and does not require an account.
 
 - Run a countdown, stopwatch, or Pomodoro cycle with focus sounds, timer notifications, and a floating timer on supported devices.
 - Set app limits, block short-video feeds, or keep a list of websites and YouTube channels for studying.
@@ -8,6 +8,8 @@ StudyOrbit is an offline Android app for focus sessions and distraction blocking
 - Add the **Focus timer** or **Next study session** widget from the Android home-screen widget picker under StudyOrbit.
 
 Whole-app protection uses Android Usage Access and Display over other apps. Enable it from the Block tab. Advanced filters for short-video feeds, websites, and YouTube channels use optional Accessibility and depend on what each app exposes. Usage Access is also needed for screen-time reports.
+
+StudyOrbit works offline. To enable adult-site filtering, first download the optional domain list under **Block → Advanced filters → Web & YouTube rules**. The list stays on your device and filtering works offline after the download.
 
 ## Download
 
@@ -29,5 +31,6 @@ Use JDK 17 and Android SDK Platform 35. The app supports Android 8.0 and later.
 | Optimized for local install | `./gradlew assembleOptimized` | `.\gradlew.bat assembleOptimized` |
 
 The optimized build uses R8 and the local Android debug signing key.
+The build also generates the optional domain catalog ZIP under `app/build/outputs/domain-catalog`. Release v1.5 serves this ZIP alongside the APK.
 
 The bundled adult-domain list comes from [The Block List Project](https://github.com/blocklistproject/Lists), which releases it under [the Unlicense](https://github.com/blocklistproject/Lists/blob/main/LICENSE).

@@ -1,6 +1,14 @@
 <resources>
     <string name="app_name">StudyOrbit</string>
     <string name="open_app">Open StudyOrbit</string>
+    <string name="adult_catalog_toggle">Filter adult sites</string>
+    <string name="adult_catalog_ready">The domain list is downloaded. Filtering works offline.</string>
+    <string name="adult_catalog_required">Download the domain list before turning this on.</string>
+    <string name="adult_catalog_legacy">Common sites are still blocked. Download the full list to restore the broader filter.</string>
+    <string name="adult_catalog_downloading">Downloading the domain list…</string>
+    <string name="adult_catalog_failed">The list could not be downloaded. Check your connection and try again.</string>
+    <string name="adult_catalog_download">Download domain list</string>
+    <string name="adult_catalog_retry">Retry download</string>
     <string name="mini_timer_paused">Paused</string>
     <string name="mini_timer_break">Break</string>
     <string name="mini_timer_focus">Focus</string>

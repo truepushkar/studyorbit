@@ -15,6 +15,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,8 +27,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import java.time.LocalDate
 import java.time.ZoneId
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 internal fun nextMidnight() = LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -34,6 +40,11 @@ internal fun ContentRulesDialog(
     original: ContentRules, strict: Boolean, enabled: Boolean, onDismiss: () -> Unit, onSave: (ContentRules) -> Unit
 ) {
     val editable = !original.isLocked && !strict
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var catalogReady by remember { mutableStateOf(DomainCatalog.isReady(context)) }
+    var downloading by remember { mutableStateOf(false) }
+    var downloadFailed by remember { mutableStateOf(false) }
     var blocked by rememberSaveable { mutableStateOf(original.blockedHosts.sorted().joinToString("\n")) }
     var allowed by rememberSaveable { mutableStateOf(original.allowedHosts.sorted().joinToString("\n")) }
     var channels by rememberSaveable { mutableStateOf(original.channels.sorted().joinToString("\n")) }
@@ -58,7 +69,38 @@ internal fun ContentRulesDialog(
                 OutlinedTextField(blocked, { blocked = it.take(4000) }, enabled = editable, isError = invalidBlocked,
                     label = { Text("Always blocked sites") }, placeholder = { Text("example.com") }, maxLines = 4,
                     supportingText = { Text(if (invalidBlocked) "Enter valid domains or URLs." else "One domain or URL per line.") })
-                ToggleRule("Filter adult sites", "Blocks a built-in list of common adult domains.", adult, editable) { adult = it }
+                val catalogStatus = when {
+                    catalogReady -> R.string.adult_catalog_ready
+                    downloadFailed -> R.string.adult_catalog_failed
+                    downloading -> R.string.adult_catalog_downloading
+                    adult -> R.string.adult_catalog_legacy
+                    else -> R.string.adult_catalog_required
+                }
+                ToggleRule(stringResource(R.string.adult_catalog_toggle), stringResource(catalogStatus),
+                    adult, editable && (catalogReady || adult)) { adult = it }
+                if (!catalogReady) {
+                    if (downloading) {
+                        LinearProgressIndicator(
+                            Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+                            color = Purple, trackColor = OrbitTrack
+                        )
+                    } else {
+                        OrbitButton(stringResource(if (downloadFailed) R.string.adult_catalog_retry else R.string.adult_catalog_download), {
+                            downloading = true
+                            downloadFailed = false
+                            scope.launch {
+                                try {
+                                    DomainCatalog.download(context.applicationContext)
+                                    catalogReady = true
+                                } catch (_: IOException) {
+                                    downloadFailed = true
+                                } finally {
+                                    downloading = false
+                                }
+                            }
+                        }, Modifier.fillMaxWidth(), primary = false)
+                    }
+                }
                 ToggleRule("Browser Study Mode", "Allow listed sites during focus in supported browsers.", browser, editable) { browser = it }
                 if (browser) OutlinedTextField(allowed, { allowed = it.take(4000) },
                     enabled = editable, isError = invalidAllowed,

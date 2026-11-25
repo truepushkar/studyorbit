@@ -44,8 +44,11 @@ internal data class StudySchedule(
     }
 }
 
-internal fun readSchedules(prefs: SharedPreferences): List<StudySchedule> {
-    val data = runCatching { JSONArray(prefs.getString("study_schedules", "[]")) }.getOrElse { JSONArray() }
+internal fun readSchedules(prefs: SharedPreferences): List<StudySchedule> =
+    parseSchedules(prefs.getString("study_schedules", "[]").orEmpty())
+
+private fun parseSchedules(stored: String): List<StudySchedule> {
+    val data = runCatching { JSONArray(stored) }.getOrElse { JSONArray() }
     return (0 until data.length()).mapNotNull { index ->
         runCatching {
             val entry = data.getJSONObject(index)
@@ -95,6 +98,17 @@ internal fun scheduledFocus(schedules: List<StudySchedule>, now: ZonedDateTime):
 
 internal class StudyPlanner(private val context: Context, private val prefs: SharedPreferences) {
     private val alarm get() = context.getSystemService(AlarmManager::class.java)
+    private var cachedJson: String? = null
+    private var cachedSchedules = emptyList<StudySchedule>()
+
+    fun schedules(): List<StudySchedule> {
+        val stored = prefs.getString("study_schedules", "[]").orEmpty()
+        if (stored != cachedJson) {
+            cachedSchedules = parseSchedules(stored)
+            cachedJson = stored
+        }
+        return cachedSchedules
+    }
 
     fun save(schedules: List<StudySchedule>) {
         if (FocusStore(context).strictWindow()) return
@@ -112,7 +126,7 @@ internal class StudyPlanner(private val context: Context, private val prefs: Sha
 
     fun arm() {
         val now = ZonedDateTime.now()
-        val next = readSchedules(prefs).asSequence().filter { it.remind }
+        val next = schedules().asSequence().filter { it.remind }
             .mapNotNull { it.nextStart(now) }.minOrNull()
         val intent = Intent(context, PlannerReceiver::class.java).setAction(REMIND)
         if (next != null) {
@@ -131,7 +145,7 @@ internal class StudyPlanner(private val context: Context, private val prefs: Sha
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val start = Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault())
-        val names = readSchedules(prefs).filter {
+        val names = schedules().filter {
             it.remind && it.on(start.toLocalDate()) && it.start(start.toLocalDate(), start.zone).toEpochMilli() == timestamp
         }.map { it.name }
         if (names.isEmpty()) return

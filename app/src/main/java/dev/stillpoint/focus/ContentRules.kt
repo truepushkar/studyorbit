@@ -1,8 +1,6 @@
 package dev.stillpoint.focus
 
 import android.content.SharedPreferences
-import android.content.Context
-import android.util.LruCache
 import android.view.accessibility.AccessibilityNodeInfo
 import java.net.IDN
 import java.net.URI
@@ -28,43 +26,6 @@ internal data class ContentRules(
     }
 }
 
-private val fallbackAdultSites = setOf(
-    "pornhub.com", "xvideos.com", "xnxx.com", "xhamster.com", "youporn.com", "redtube.com",
-    "tube8.com", "spankbang.com", "eporner.com", "youjizz.com", "brazzers.com", "tnaflix.com",
-    "chaturbate.com", "stripchat.com", "livejasmin.com", "cam4.com", "camsoda.com", "myfreecams.com"
-)
-
-internal class AdultDomains(private val context: Context) {
-    // Keep a few buckets in memory rather than loading the full offline catalog.
-    private val buckets = LruCache<Int, Set<String>>(8)
-
-    fun cachedMatch(host: String): Boolean? {
-        var suffix = host
-        var missing = false
-        while ('.' in suffix) {
-            if (suffix in fallbackAdultSites) return true
-            val bucket = buckets.get(suffix.hashCode() and 127)
-            if (bucket == null) missing = true else if (suffix in bucket) return true
-            suffix = suffix.substringAfter('.')
-        }
-        return if (missing) null else false
-    }
-
-    fun loadAndMatch(host: String): Boolean {
-        var suffix = host
-        while ('.' in suffix) {
-            if (suffix in fallbackAdultSites) return true
-            val key = suffix.hashCode() and 127
-            val bucket = buckets.get(key) ?: runCatching {
-                context.assets.open("adult-domains/$key.txt").bufferedReader().useLines { it.toHashSet() }
-            }.getOrDefault(emptySet()).also { buckets.put(key, it) }
-            if (suffix in bucket) return true
-            suffix = suffix.substringAfter('.')
-        }
-        return false
-    }
-}
-
 internal fun readContentRules(prefs: SharedPreferences) = ContentRules(
     blockedHosts = prefs.getStringSet("blocked_hosts", emptySet()).orEmpty(),
     allowedHosts = prefs.getStringSet("allowed_hosts", emptySet()).orEmpty(),
@@ -76,7 +37,9 @@ internal fun readContentRules(prefs: SharedPreferences) = ContentRules(
 )
 
 internal fun FocusStore.saveContentRules(rules: ContentRules): Boolean {
-    if (strictWindow() || readContentRules(prefs).isLocked) return false
+    val previous = readContentRules(prefs)
+    if (strictWindow() || previous.isLocked) return false
+    if (rules.adultFilter && !previous.adultFilter && !DomainCatalog.isReady(appContext)) return false
     prefs.edit().putStringSet("blocked_hosts", rules.blockedHosts).putStringSet("allowed_hosts", rules.allowedHosts)
         .putStringSet("study_channels", rules.channels).putBoolean("adult_filter", rules.adultFilter)
         .putBoolean("browser_study", rules.browserStudy).putBoolean("youtube_study", rules.youtubeStudy)

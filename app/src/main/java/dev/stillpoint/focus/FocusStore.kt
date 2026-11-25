@@ -67,6 +67,7 @@ data class AppRule(
 }
 
 class FocusStore(private val context: Context) {
+    internal val appContext: Context get() = context.applicationContext
     internal val prefs = context.getSharedPreferences("stillpoint", Context.MODE_PRIVATE)
 
     var focusMinutes: Int

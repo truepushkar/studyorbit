@@ -95,9 +95,10 @@ internal fun BlockPage(
         }
     }
     val rules = remember(store, appRulesVersion, today, locked) { store.configuredRules() }
-    val configured = produceState<List<DeviceApp>?>(null, device, resumes, rules.keys) {
-        value = if (rules.isEmpty()) emptyList() else withContext(Dispatchers.IO) { device.configuredApps(rules.keys) }
-    }.value
+    var configured by remember(device) { mutableStateOf<List<DeviceApp>?>(null) }
+    LaunchedEffect(device, resumes, rules.keys) {
+        configured = if (rules.isEmpty()) emptyList() else withContext(Dispatchers.IO) { device.configuredApps(rules.keys) }
+    }
     val configuredApps = remember(configured, rules.keys) {
         configured.orEmpty().filter { it.id in rules }
     }
@@ -243,9 +244,12 @@ internal fun BlockPage(
                         if (rule.isLocked) add("Locked until midnight")
                         if (used != null && (used > 0 || rule.dailyMinutes > 0)) add("$used min used")
                     }.joinToString(" · ").ifEmpty { "Not configured" }
-                    val icon by produceState(icons.get(app.id), device, app, icons) {
-                        value = icons.get(app.id) ?: withContext(Dispatchers.IO) {
-                            device.loadIcon(app)?.toBitmap(88, 88)?.asImageBitmap()?.also { icons.put(app.id, it) }
+                    var icon by remember(device, app, icons) { mutableStateOf(icons.get(app.id)) }
+                    LaunchedEffect(device, app, icons) {
+                        if (icon == null) {
+                            icon = withContext(Dispatchers.IO) {
+                                device.loadIcon(app)?.toBitmap(88, 88)?.asImageBitmap()?.also { icons.put(app.id, it) }
+                            }
                         }
                     }
                     Row(

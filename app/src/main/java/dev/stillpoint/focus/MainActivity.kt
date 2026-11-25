@@ -159,20 +159,18 @@ private fun StudyOrbit(
     var theme by remember { mutableStateOf(TimerTheme.entries.getOrElse(store.prefs.getInt("timer_theme", 0)) { TimerTheme.ORBIT }) }
     var sound by remember { mutableStateOf(store.soundscape()) }
     var nudges by remember { mutableStateOf(store.prefs.getBoolean("focus_nudges", true)) }
-    var schedules by remember { mutableStateOf(readSchedules(store.prefs)) }
+    var scheduleRevision by remember { mutableIntStateOf(0) }
     val planner = remember(store) { StudyPlanner(context, store.prefs) }
-    val policy = remember(context) { context.getSystemService(DevicePolicyManager::class.java) }
-    val admin = remember(context) { ComponentName(context, StudyAdmin::class.java) }
-    var adminActive by remember(resumes) { mutableStateOf(policy?.isAdminActive(admin) == true) }
-    val exactAlarms = remember(resumes) {
-        Build.VERSION.SDK_INT < 31 || context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
-    }
     var today by remember { mutableStateOf(LocalDate.now()) }
     var protectionSetup by rememberSaveable { mutableStateOf(false) }
-    val blockAccess = remember(resumes) { apps.hasBlockAccess() }
-    val usageAccess = remember(resumes) { apps.hasUsageAccess() }
-    val overlayAccess = remember(resumes) { Settings.canDrawOverlays(context) }
     val protectionRunning = UsageBlockService.running
+    val protectionEnabled = store.prefs.getBoolean(UsageBlockService.ENABLED, false)
+    val needsProtectionStatus = destination == Destination.BLOCK || protectionSetup || protectionEnabled
+    val needsUsageStatus = needsProtectionStatus || destination == Destination.PROGRESS
+    val usageAccess = remember(resumes, needsUsageStatus) { needsUsageStatus && apps.hasUsageAccess() }
+    val overlayAccess = remember(resumes, needsProtectionStatus) {
+        needsProtectionStatus && Settings.canDrawOverlays(context)
+    }
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) store.syncStudyNotification()
     }
@@ -225,7 +223,7 @@ private fun StudyOrbit(
     }
 
     LaunchedEffect(resumes) {
-        if (resumes > 0 && store.prefs.getBoolean(UsageBlockService.ENABLED, false)) {
+        if (resumes > 0 && protectionEnabled) {
             if (usageAccess && overlayAccess) startAppProtection()
             else context.stopService(Intent(context, UsageBlockService::class.java))
         }
@@ -377,36 +375,49 @@ private fun StudyOrbit(
                                 onGoal = { destination = Destination.PROGRESS },
                                 shortcuts = { StudyShortcuts(readContentRules(store.prefs)) }
                             )
-                            Destination.BLOCK -> BlockPage(
-                                apps, store, blockAccess, usageAccess, active?.strict == true, today, resumes,
-                                appProtection = protectionRunning, protectionReady = usageAccess && overlayAccess,
-                                onSubpage = { blockSubpage = it },
-                                onAppProtection = { protectionSetup = true },
-                                onBlockAccess = { disclosure = true },
-                                adminActive = adminActive,
-                                onAdmin = {
-                                    if (adminActive) {
-                                        policy?.removeActiveAdmin(admin)
-                                        adminActive = false
-                                    } else openSettings(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN, Bundle().apply {
-                                        putParcelable(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
-                                        putString(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                                            "Adds an extra confirmation step before uninstalling StudyOrbit. You can remove access from Android Settings.")
-                                    })
+                            Destination.BLOCK -> {
+                                val policy = remember(context) { context.getSystemService(DevicePolicyManager::class.java) }
+                                val admin = remember(context) { ComponentName(context, StudyAdmin::class.java) }
+                                var adminActive by remember(resumes) { mutableStateOf(policy?.isAdminActive(admin) == true) }
+                                val blockAccess = remember(resumes) { apps.hasBlockAccess() }
+                                BlockPage(
+                                    apps, store, blockAccess, usageAccess, active?.strict == true, today, resumes,
+                                    appProtection = protectionRunning, protectionReady = usageAccess && overlayAccess,
+                                    onSubpage = { blockSubpage = it },
+                                    onAppProtection = { protectionSetup = true },
+                                    onBlockAccess = { disclosure = true },
+                                    adminActive = adminActive,
+                                    onAdmin = {
+                                        if (adminActive) {
+                                            policy?.removeActiveAdmin(admin)
+                                            adminActive = false
+                                        } else openSettings(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN, Bundle().apply {
+                                            putParcelable(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
+                                            putString(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                                                "Adds an extra confirmation step before uninstalling StudyOrbit. You can remove access from Android Settings.")
+                                        })
+                                    }
+                                )
+                            }
+                            Destination.PLANNER -> {
+                                val schedules = remember(planner, scheduleRevision) { planner.schedules() }
+                                val exactAlarms = remember(resumes) {
+                                    Build.VERSION.SDK_INT < 31 ||
+                                        context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
                                 }
-                            )
-                            Destination.PLANNER -> PlannerPage(
-                                schedules, today, active != null, active?.strict == true, exactAlarms,
-                                onExactAlarms = {
-                                    openSettings(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, data = Uri.parse("package:${context.packageName}"))
-                                },
-                                onSave = { updated, reminder ->
-                                    planner.save(updated)
-                                    schedules = readSchedules(store.prefs)
-                                    if (reminder) requestNotifications()
-                                },
-                                onStart = { launchSession(it.minutes, it.name) }
-                            )
+                                PlannerPage(
+                                    schedules, today, active != null, active?.strict == true, exactAlarms,
+                                    onExactAlarms = {
+                                        openSettings(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, data = Uri.parse("package:${context.packageName}"))
+                                    },
+                                    onSave = { updated, reminder ->
+                                        planner.save(updated)
+                                        scheduleRevision++
+                                        if (reminder) requestNotifications()
+                                    },
+                                    onStart = { launchSession(it.minutes, it.name) }
+                                )
+                            }
                             Destination.PROGRESS -> ProgressPage(
                                 history, today, goal, apps, store, usageAccess,
                                 onFocus = { result = -1; destination = Destination.FOCUS },

@@ -15,12 +15,12 @@ import android.media.AudioTrack
 import android.os.Handler
 import android.os.Looper
 import android.os.Trace
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -127,7 +127,7 @@ class FocusAudio : Service() {
             try {
                 Trace.beginSection("StudyOrbit.audio.prepare")
                 val prepared = try {
-                    val samples = makeLoop(sound)
+                    val samples = makeLoop(sound, coroutineContext)
                     val created = AudioTrack.Builder().setAudioAttributes(attributes).setAudioFormat(
                         AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(RATE)
                             .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build()
@@ -203,13 +203,12 @@ class FocusAudio : Service() {
         super.onDestroy()
     }
 
-    private suspend fun makeLoop(sound: Soundscape): ShortArray {
-        val currentJob = currentCoroutineContext()
+    private fun makeLoop(sound: Soundscape, coroutineContext: CoroutineContext): ShortArray {
         val random = Random(48)
         var low = 0.0
         val size = RATE * 8
         return ShortArray(size) { index ->
-            if (index % 4096 == 0) currentJob.ensureActive()
+            if (index % 4096 == 0) coroutineContext.ensureActive()
             val sample = when (sound) {
                 Soundscape.RAIN -> {
                     val noise = random.nextDouble(-1.0, 1.0)

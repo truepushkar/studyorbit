@@ -380,6 +380,16 @@ private fun FlowerTimer(
     val base = ImageBitmap.imageResource(R.drawable.fig_petal)
     val lit = ImageBitmap.imageResource(R.drawable.fig_petal_active)
     val pomodoro = mode == TimerMode.POMODORO
+    val visiblePetals = remember(active, stopwatch, result, time) {
+        derivedStateOf(structuralEqualityPolicy()) {
+            val fraction = if (active != null && active.duration > 0 && !stopwatch) {
+                1f - (time.value ?: active.remaining).toFloat() / active.duration
+            } else if (active != null && stopwatch) {
+                (time.value ?: active.remaining).toFloat() / (25 * MINUTE)
+            } else 0f
+            if (result >= 0) 12 else (1 + (fraction * 12).toInt()).coerceIn(1, 12)
+        }
+    }
     Box(Modifier.size(diameter), contentAlignment = Alignment.Center) {
         Canvas(Modifier.matchParentSize().graphicsLayer {
             val amount = bloom.value
@@ -387,19 +397,15 @@ private fun FlowerTimer(
             scaleX = 1f + amount * 0.036f
             scaleY = scaleX
         }) {
-            val fraction = if (active != null && active.duration > 0 && !stopwatch) {
-                1f - (time.value ?: active.remaining).toFloat() / active.duration
-            } else if (active != null && stopwatch) {
-                (time.value ?: active.remaining).toFloat() / (25 * MINUTE)
-            } else 0f
-            val petals = if (result >= 0) 12 else (1 + (fraction * 12).toInt()).coerceIn(1, 12)
+            val petals = visiblePetals.value
             val width = (size.width * 61f / 310f).roundToInt()
             val height = (size.height * 112f / 310f).roundToInt()
+            val offset = IntOffset(((size.width - width) / 2).roundToInt(), 0)
+            val petalSize = IntSize(width, height)
             repeat(12) { index ->
                 rotate(index * 30f, pivot = center) {
                     drawImage(if (index < petals) lit else base,
-                        dstOffset = IntOffset(((size.width - width) / 2).roundToInt(), 0),
-                        dstSize = IntSize(width, height))
+                        dstOffset = offset, dstSize = petalSize)
                 }
             }
         }

@@ -4,12 +4,14 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.AppOpsManager
 import android.app.KeyguardManager
 import android.app.usage.UsageEvents
+import android.app.usage.UsageEventsQuery
 import android.app.usage.UsageStatsManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ResolveInfo
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.os.PowerManager
 import android.os.Process
 import android.os.Trace
@@ -48,11 +50,16 @@ class DeviceApps(private val context: Context) {
 
     suspend fun configuredApps(packages: Set<String>): List<DeviceApp> {
         val job = currentCoroutineContext()
-        return packages.mapNotNull { pkg ->
-            job.ensureActive()
-            if (!canBlock(pkg)) return@mapNotNull null
-            pm.queryIntentActivities(launcherIntent().setPackage(pkg), 0).firstOrNull()?.let(::appFromLauncher)
-        }.sortedBy { it.name.lowercase() }
+        if (packages.isEmpty()) return emptyList()
+        val intent = launcherIntent()
+        if (packages.size == 1) intent.setPackage(packages.first())
+        return pm.queryIntentActivities(intent, 0).asSequence()
+            .filter { it.activityInfo.packageName in packages }
+            .distinctBy { it.activityInfo.packageName }
+            .mapNotNull {
+                job.ensureActive()
+                appFromLauncher(it)
+            }.sortedBy { it.name.lowercase() }.toList()
     }
 
     fun loadIcon(app: DeviceApp): Drawable? =
@@ -99,7 +106,7 @@ class DeviceApps(private val context: Context) {
         val stats = context.getSystemService(UsageStatsManager::class.java)
         Trace.beginSection("StudyOrbit.usage.query")
         val events = try {
-            stats.queryEvents(yesterday, now)
+            stats.queryRelevantEvents(yesterday, now, forScreenTime = true)
         } finally {
             Trace.endSection()
         } ?: return null
@@ -143,4 +150,22 @@ class DeviceApps(private val context: Context) {
         accrue(now)
         return totals
     }
+}
+
+internal fun UsageStatsManager.queryRelevantEvents(start: Long, end: Long, forScreenTime: Boolean = false): UsageEvents? {
+    val begin = start.coerceAtLeast(0)
+    if (begin >= end) return null
+    if (Build.VERSION.SDK_INT < 35) return queryEvents(begin, end)
+    val query = UsageEventsQuery.Builder(begin, end)
+    if (forScreenTime) {
+        query.setEventTypes(
+            UsageEvents.Event.ACTIVITY_RESUMED, UsageEvents.Event.ACTIVITY_PAUSED,
+            UsageEvents.Event.SCREEN_INTERACTIVE, UsageEvents.Event.SCREEN_NON_INTERACTIVE,
+            UsageEvents.Event.KEYGUARD_SHOWN, UsageEvents.Event.KEYGUARD_HIDDEN,
+            UsageEvents.Event.DEVICE_SHUTDOWN, UsageEvents.Event.DEVICE_STARTUP
+        )
+    } else {
+        query.setEventTypes(UsageEvents.Event.ACTIVITY_RESUMED, UsageEvents.Event.ACTIVITY_PAUSED)
+    }
+    return queryEvents(query.build())
 }
