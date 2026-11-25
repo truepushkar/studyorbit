@@ -161,7 +161,7 @@ internal fun FocusPage(
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (active.strict) OrbitButton("Pin screen", onPin, Modifier.weight(1f), primary = false, container = OrbitSurface)
-                    OrbitButton("Sound & theme", { sheet = "atmosphere" }, Modifier.weight(1f), primary = false, container = OrbitSurface)
+                    OrbitButton("Music & theme", { sheet = "atmosphere" }, Modifier.weight(1f), primary = false, container = OrbitSurface)
                     if (!active.strict && onMiniTimer != null) {
                         OrbitButton("Float timer", onMiniTimer, Modifier.weight(1f), primary = false, container = OrbitSurface)
                     }
@@ -236,21 +236,7 @@ internal fun FocusPage(
     if (sheet == "atmosphere" && active != null) OrbitSheet({ sheet = null }) {
         OrbitHeading("Set the atmosphere", size = 26)
         Text("Changes apply immediately to your session.", color = Muted)
-        Text("SOUND", Modifier.padding(top = 8.dp), color = Muted, fontSize = 11.sp)
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Soundscape.entries.forEach { item ->
-                val selected = item == sound
-                Row(
-                    Modifier.fillMaxWidth().clip(FieldShape).background(if (selected) AccentSurface else OrbitSurface)
-                        .selectable(selected, onClick = { onSound(item) }, role = Role.RadioButton)
-                        .heightIn(min = 48.dp).padding(horizontal = 15.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(item.label, Modifier.weight(1f), color = if (selected) Accent else Ink)
-                    Text(if (selected) "●" else "○", color = Accent, fontSize = 17.sp)
-                }
-            }
-        }
+        MusicPicker(sound, onSound)
         Text("THEME", color = Muted, fontSize = 11.sp)
         TimerTheme.entries.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

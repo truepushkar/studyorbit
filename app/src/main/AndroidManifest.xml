@@ -74,6 +74,10 @@
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
         </receiver>
+        <service android:name=".FloatingTimerService" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-requested floating study timer with pause and resume controls." />
+        </service>
         <service android:name=".FocusAudio" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         <service android:name=".UsageBlockService" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"

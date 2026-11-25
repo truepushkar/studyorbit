@@ -171,6 +171,17 @@ private fun StudyOrbit(
     val overlayAccess = remember(resumes, needsProtectionStatus) {
         needsProtectionStatus && Settings.canDrawOverlays(context)
     }
+    fun showFloatingTimer() {
+        if (store.session()?.strict != false) return
+        runCatching { context.startForegroundService(Intent(context, FloatingTimerService::class.java)) }
+            .onFailure { Toast.makeText(context, "Unable to show the floating timer.", Toast.LENGTH_SHORT).show() }
+    }
+    val timerOverlayPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (Settings.canDrawOverlays(context)) showFloatingTimer()
+        else if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            context.startActivity(Intent(context, MiniTimerActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) store.syncStudyNotification()
     }
@@ -365,13 +376,16 @@ private fun StudyOrbit(
                                 },
                                 onSound = {
                                     sound = it
-                                    store.prefs.edit().putInt("soundscape", it.ordinal).apply()
+                                    store.prefs.edit().putString("music_track", it.name).apply()
                                     syncAudio()
                                 },
-                                onMiniTimer = if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) ({
-                                    context.startActivity(Intent(context, MiniTimerActivity::class.java)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                }) else null,
+                                onMiniTimer = {
+                                    if (Settings.canDrawOverlays(context)) showFloatingTimer()
+                                    else runCatching { timerOverlayPermission.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:" + context.packageName))) }.onFailure {
+                                        Toast.makeText(context, "Open Android Settings and allow display over other apps.", Toast.LENGTH_LONG).show()
+                                    }
+                                },
                                 onGoal = { destination = Destination.PROGRESS },
                                 shortcuts = { StudyShortcuts(readContentRules(store.prefs)) }
                             )
@@ -477,7 +491,7 @@ private fun StudyOrbit(
                 theme = nextTheme
                 sound = nextSound
                 nudges = nextNudges
-                store.prefs.edit().putInt("timer_theme", nextTheme.ordinal).putInt("soundscape", nextSound.ordinal)
+                store.prefs.edit().putInt("timer_theme", nextTheme.ordinal).putString("music_track", nextSound.name)
                     .putBoolean("focus_nudges", nextNudges).apply()
                 syncAudio()
                 settings = false
@@ -641,7 +655,7 @@ private fun SettingsDialog(
             PreferenceNumber("Long break", longBreak, { longBreak = it }, "min", 1..180)
             PreferenceNumber("Pomodoro rounds", rounds, { rounds = it }, " ·  2–12", 2..12)
             PreferenceNumber("Daily goal", goalText, { goalText = it }, "min  ·  1–720", 1..720)
-            PreferenceChoice("Sound", selectedSound.label, Soundscape.entries, { it.label }, { selectedSound = it })
+            MusicPicker(selectedSound) { selectedSound = it }
             PreferenceChoice("Theme", selectedTheme.label, TimerTheme.entries, { it.label }, { selectedTheme = it })
             Spacer(Modifier.height(7.dp))
             ToggleRule("Companion nudges", "", showNudges) { showNudges = it }
