@@ -4,12 +4,9 @@ import android.Manifest
 import android.app.ActivityManager
 import android.app.AlarmManager
 import android.app.admin.DevicePolicyManager
-import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -20,10 +17,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -59,9 +61,9 @@ import java.time.LocalDate
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.withTimeoutOrNull
 
 class MainActivity : ComponentActivity() {
+    private val model by viewModels<StudyViewModel>()
     private var resumeCount by mutableIntStateOf(0)
     private val routeRequests = Channel<Destination>(Channel.CONFLATED)
     private val routes = routeRequests.receiveAsFlow()
@@ -70,14 +72,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         )
-        val store = FocusStore(this)
         val apps = DeviceApps(this)
         pinRequested = savedInstanceState?.getBoolean("focus_pin") == true
         val initialDestination = routeDestination(intent) ?: Destination.FOCUS
-        setContent { StudyOrbit(store, apps, resumeCount, initialDestination, routes, ::pin, ::releasePin) }
+        setContent { StudyOrbit(model, apps, resumeCount, initialDestination, routes, ::pin, ::releasePin) }
     }
 
     override fun onResume() {
@@ -131,37 +132,39 @@ private enum class Destination(val label: String, val icon: Int, val selectedIco
 
 @Composable
 private fun StudyOrbit(
-    store: FocusStore, apps: DeviceApps, resumes: Int, initialDestination: Destination, routes: Flow<Destination>,
+    model: StudyViewModel, apps: DeviceApps, resumes: Int, initialDestination: Destination, routes: Flow<Destination>,
     onPin: () -> Unit, onReleasePin: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var destination by rememberSaveable { mutableStateOf(initialDestination) }
+    val store = model.store
+    val ui by model.state.collectAsStateWithLifecycle()
+    val active = ui.active
+    val history = ui.history
+    val today = ui.today
+    val focusMinutes = ui.focusMinutes
+    val breakMinutes = ui.breakMinutes
+    val goal = ui.goal
+    val subject = ui.subject
+    val mode = ui.mode
+    val strict = ui.strict
+    val theme = ui.theme
+    val sound = ui.sound
+    val nudges = ui.nudges
+    val result = ui.result
+    val resultTime = ui.resultTime
+    val resultKind = ui.resultKind
     val tabState = rememberSaveableStateHolder()
     var phase by rememberSaveable { mutableStateOf(Phase.FOCUS) }
     var settings by rememberSaveable { mutableStateOf(false) }
     var disclosure by rememberSaveable { mutableStateOf(false) }
     var endConfirmation by rememberSaveable { mutableStateOf(false) }
     var strictConfirmation by rememberSaveable { mutableStateOf(false) }
-    var active by remember { mutableStateOf(store.session()) }
-    var history by remember { mutableStateOf(store.history()) }
-    var result by rememberSaveable { mutableIntStateOf(-1) }
-    var resultTime by rememberSaveable { mutableLongStateOf(0L) }
-    var resultKind by rememberSaveable { mutableStateOf(FocusResult.FOCUS) }
     var blockSubpage by rememberSaveable { mutableStateOf(false) }
     val secondaryPage = destination == Destination.BLOCK && blockSubpage
-    var focusMinutes by remember { mutableIntStateOf(store.focusMinutes) }
-    var breakMinutes by remember { mutableIntStateOf(store.breakMinutes) }
-    var goal by remember { mutableIntStateOf(store.goalMinutes) }
-    var subject by remember { mutableStateOf(store.subject) }
-    var mode by rememberSaveable { mutableStateOf(TimerMode.entries.getOrElse(store.prefs.getInt("timer_mode", 0)) { TimerMode.TIMER }) }
-    var strict by rememberSaveable { mutableStateOf(store.prefs.getBoolean("strict_preference", false)) }
-    var theme by remember { mutableStateOf(TimerTheme.entries.getOrElse(store.prefs.getInt("timer_theme", 0)) { TimerTheme.ORBIT }) }
-    var sound by remember { mutableStateOf(store.soundscape()) }
-    var nudges by remember { mutableStateOf(store.prefs.getBoolean("focus_nudges", true)) }
     var scheduleRevision by remember { mutableIntStateOf(0) }
     val planner = remember(store) { StudyPlanner(context, store.prefs) }
-    var today by remember { mutableStateOf(LocalDate.now()) }
     var protectionSetup by rememberSaveable { mutableStateOf(false) }
     val protectionRunning = UsageBlockService.running
     val protectionEnabled = store.prefs.getBoolean(UsageBlockService.ENABLED, false)
@@ -187,34 +190,8 @@ private fun StudyOrbit(
     }
     val asked = rememberSaveable { mutableStateOf(store.prefs.getBoolean("asked_notifications", false)) }
 
-    fun refresh() {
-        val previous = active
-        val next = store.session()
-        val updatedHistory = store.history()
-        if (previous != null && next == null) {
-            val newLog = updatedHistory.lastOrNull()?.takeIf { it != history.lastOrNull() }
-            when {
-                newLog != null -> {
-                    result = newLog.minutes
-                    resultTime = result * MINUTE
-                    resultKind = if (previous.mode == TimerMode.STOPWATCH) FocusResult.STOPWATCH else FocusResult.FOCUS
-                }
-                previous.mode == TimerMode.POMODORO && previous.phase == Phase.BREAK && previous.displayTime() == 0L -> {
-                    result = updatedHistory.takeLast(previous.rounds).sumOf { it.minutes }
-                    resultTime = result * MINUTE
-                    resultKind = FocusResult.CYCLE
-                }
-                previous.phase == Phase.BREAK && previous.displayTime() == 0L -> {
-                    result = 0
-                    resultTime = previous.duration
-                    resultKind = FocusResult.BREAK
-                }
-            }
-        }
-        active = next
-        history = updatedHistory
-        today = LocalDate.now()
-    }
+    val view = androidx.compose.ui.platform.LocalView.current
+    fun pulse() { view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
 
     fun openSettings(action: String, extras: Bundle? = null, data: Uri? = null) {
         try {
@@ -252,17 +229,18 @@ private fun StudyOrbit(
 
     fun syncAudio() {
         val intent = Intent(context, FocusAudio::class.java)
-        if (sound == Soundscape.OFF || active == null) context.stopService(intent)
-        else if (active?.running == true && active?.phase == Phase.FOCUS) runCatching { context.startForegroundService(intent) }
+        val session = store.session()
+        if (store.soundscape() == Soundscape.OFF || session == null) context.stopService(intent)
+        else if (session.running && session.phase == Phase.FOCUS) runCatching { context.startForegroundService(intent) }
     }
 
     fun launchSession(minutes: Int, task: String? = null) {
-        result = -1
+        model.reset()
         val targetMode = if (task == null) mode else TimerMode.TIMER
         val targetPhase = if (task == null && mode == TimerMode.TIMER) phase else Phase.FOCUS
-        store.start(targetPhase, minutes, targetMode, task == null && strict && targetPhase == Phase.FOCUS, task ?: subject)
+        pulse()
+        store.start(targetPhase, minutes, targetMode, task == null && strict && targetPhase == Phase.FOCUS, task ?: store.subject)
         destination = Destination.FOCUS
-        refresh()
         requestNotifications()
         syncAudio()
     }
@@ -286,46 +264,24 @@ private fun StudyOrbit(
 
     LaunchedEffect(lifecycle, store) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            val updates = Channel<Unit>(Channel.CONFLATED)
-            val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-                if (isSessionPreference(key) || key == "history") updates.trySend(Unit)
-            }
-            val clockChanges = object : BroadcastReceiver() {
-                override fun onReceive(context: Context, intent: Intent) {
-                    updates.trySend(Unit)
-                }
-            }
-            val clockFilter = IntentFilter().apply {
-                addAction(Intent.ACTION_TIME_CHANGED)
-                addAction(Intent.ACTION_TIMEZONE_CHANGED)
-                addAction(Intent.ACTION_DATE_CHANGED)
-            }
-            store.prefs.registerOnSharedPreferenceChangeListener(listener)
-            ContextCompat.registerReceiver(context, clockChanges, clockFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
-            try {
-                store.restoreAlarm()
-                planner.arm()
-                refresh()
-                store.syncStudyNotification()
-                syncAudio()
-                while (true) {
-                    val midnight = (nextMidnight() - System.currentTimeMillis()).coerceAtLeast(1)
-                    val countdown = active?.takeIf { it.running && it.mode != TimerMode.STOPWATCH }
-                    val nextRefresh = minOf(midnight, countdown?.displayTime()?.coerceAtLeast(1) ?: Long.MAX_VALUE)
-                    withTimeoutOrNull(nextRefresh) { updates.receive() }
-                    refresh()
-                }
-            } finally {
-                context.unregisterReceiver(clockChanges)
-                store.prefs.unregisterOnSharedPreferenceChangeListener(listener)
-                updates.close()
-            }
+            model.observe()
         }
+    }
+
+    LaunchedEffect(active?.phase, active?.running, sound) { syncAudio() }
+    var lastResult by rememberSaveable { mutableIntStateOf(result) }
+    LaunchedEffect(result) {
+        if (lastResult < 0 && result >= 0 && resultKind != FocusResult.ENDED) pulse()
+        lastResult = result
     }
 
     val background = if (destination == Destination.FOCUS && !settings) theme.pageColor else Paper
     MaterialTheme(
-        colorScheme = lightColorScheme(
+        colorScheme = if (androidx.compose.foundation.isSystemInDarkTheme()) darkColorScheme(
+            primary = Accent, onPrimary = OnAccent, primaryContainer = AccentSurface, onPrimaryContainer = Ink,
+            background = Paper, onBackground = Ink, surface = OrbitSurface, onSurface = Ink,
+            surfaceVariant = Night, onSurfaceVariant = Muted, outline = Line, outlineVariant = Line
+        ) else lightColorScheme(
             primary = Accent, onPrimary = OnAccent, primaryContainer = AccentSurface, onPrimaryContainer = Accent,
             background = Paper, onBackground = Ink, surface = OrbitSurface, onSurface = Ink,
             surfaceVariant = Night, onSurfaceVariant = Muted, outline = Line, outlineVariant = Line
@@ -337,107 +293,112 @@ private fun StudyOrbit(
                 Column(Modifier.widthIn(max = 580.dp).fillMaxWidth().weight(1f)) {
                     if (!secondaryPage) AppHeader(destination, active,
                         onTimer = { destination = Destination.FOCUS }, onSettings = { settings = true })
-                    tabState.SaveableStateProvider(destination.name) {
-                        when (destination) {
-                            Destination.FOCUS -> FocusPage(
-                                active = active, result = result, resultTime = resultTime, resultKind = resultKind,
-                                restMinutes = breakMinutes, rounds = store.rounds, longBreak = store.longBreakMinutes,
-                                onReset = { result = -1 },
-                                phase = active?.phase ?: if (mode == TimerMode.TIMER) phase else Phase.FOCUS,
-                                minutes = if (mode != TimerMode.TIMER || phase == Phase.FOCUS) focusMinutes else breakMinutes,
-                                mode = active?.mode ?: mode, strict = active?.strict ?: strict, theme = theme,
-                                sound = sound,
-                                streak = if (nudges) remember(history, today) { studyStreak(history, today) } else null,
-                                subject = subject,
-                                goal = goal,
-                                total = remember(history, today) { history.filter { it.day == today }.sumOf { it.minutes } },
-                                onMode = { mode = it; store.prefs.edit().putInt("timer_mode", it.ordinal).apply() },
-                                onStrict = { strict = it; store.prefs.edit().putBoolean("strict_preference", it).apply() },
-                                onPin = onPin,
-                                onPhase = { phase = it },
-                                onMinutes = {
-                                    if (phase == Phase.FOCUS || mode != TimerMode.TIMER) { focusMinutes = it; store.focusMinutes = it }
-                                    else { breakMinutes = it; store.breakMinutes = it }
-                                },
-                                onSubject = {
-                                    subject = it.take(70)
-                                    store.subject = subject
-                                },
-                                onStart = {
-                                    if (strict && mode != TimerMode.STOPWATCH && (mode != TimerMode.TIMER || phase == Phase.FOCUS)) {
-                                        strictConfirmation = true
-                                    } else launchSession(if (mode == TimerMode.TIMER && phase == Phase.BREAK) breakMinutes else focusMinutes)
-                                },
-                                onPause = { store.pauseOrResume(); refresh(); syncAudio() },
-                                onEnd = { endConfirmation = true },
-                                onTheme = {
-                                    theme = it
-                                    store.prefs.edit().putInt("timer_theme", it.ordinal).apply()
-                                },
-                                onSound = {
-                                    sound = it
-                                    store.prefs.edit().putString("music_track", it.name).apply()
-                                    syncAudio()
-                                },
-                                onMiniTimer = {
-                                    if (Settings.canDrawOverlays(context)) showFloatingTimer()
-                                    else runCatching { timerOverlayPermission.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:" + context.packageName))) }.onFailure {
-                                        Toast.makeText(context, "Open Android Settings and allow display over other apps.", Toast.LENGTH_LONG).show()
-                                    }
-                                },
-                                onGoal = { destination = Destination.PROGRESS },
-                                shortcuts = { StudyShortcuts(readContentRules(store.prefs)) }
-                            )
-                            Destination.BLOCK -> {
-                                val policy = remember(context) { context.getSystemService(DevicePolicyManager::class.java) }
-                                val admin = remember(context) { ComponentName(context, StudyAdmin::class.java) }
-                                var adminActive by remember(resumes) { mutableStateOf(policy?.isAdminActive(admin) == true) }
-                                val blockAccess = remember(resumes) { apps.hasBlockAccess() }
-                                BlockPage(
-                                    apps, store, blockAccess, usageAccess, active?.strict == true, today, resumes,
-                                    appProtection = protectionRunning, protectionReady = usageAccess && overlayAccess,
-                                    onSubpage = { blockSubpage = it },
-                                    onAppProtection = { protectionSetup = true },
-                                    onBlockAccess = { disclosure = true },
-                                    adminActive = adminActive,
-                                    onAdmin = {
-                                        if (adminActive) {
-                                            policy?.removeActiveAdmin(admin)
-                                            adminActive = false
-                                        } else openSettings(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN, Bundle().apply {
-                                            putParcelable(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
-                                            putString(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                                                "Adds an extra confirmation step before uninstalling StudyOrbit. You can remove access from Android Settings.")
-                                        })
-                                    }
+                    Box(Modifier.weight(1f)) {
+                        tabState.SaveableStateProvider(destination.name) {
+                            when (destination) {
+                                Destination.FOCUS -> FocusPage(
+                                    state = FocusUiState(
+                                        active = active, result = result, resultTime = resultTime, resultKind = resultKind,
+                                        restMinutes = breakMinutes, rounds = store.rounds, longBreak = store.longBreakMinutes,
+                                        phase = active?.phase ?: if (mode == TimerMode.TIMER) phase else Phase.FOCUS,
+                                        minutes = if (mode != TimerMode.TIMER || phase == Phase.FOCUS) focusMinutes else breakMinutes,
+                                        mode = active?.mode ?: mode, strict = active?.strict ?: strict, theme = theme,
+                                        sound = sound,
+                                        streak = if (nudges) remember(history, today) { studyStreak(history, today) } else null,
+                                        subject = subject,
+                                        goal = goal,
+                                        total = remember(history, today) { history.filter { it.day == today }.sumOf { it.minutes } },
+                                        recentSubjects = remember(history) { history.asReversed().map { it.subject }.filter { it.isNotBlank() }.distinct().take(4) },
+                                        lastSession = history.lastOrNull()
+                                    ),
+                                    onReset = { model.reset() },
+                                    onMode = { store.prefs.edit().putInt("timer_mode", it.ordinal).apply() },
+                                    onStrict = { store.prefs.edit().putBoolean("strict_preference", it).apply() },
+                                    onPin = onPin,
+                                    onPhase = { phase = it },
+                                    onMinutes = {
+                                        if (phase == Phase.FOCUS || mode != TimerMode.TIMER) { store.focusMinutes = it }
+                                        else { store.breakMinutes = it }
+                                    },
+                                    onSubject = {
+                                        store.subject = it.take(70)
+                                    },
+                                    onStart = {
+                                        if (strict && mode != TimerMode.STOPWATCH && (mode != TimerMode.TIMER || phase == Phase.FOCUS)) {
+                                            strictConfirmation = true
+                                        } else launchSession(if (mode == TimerMode.TIMER && phase == Phase.BREAK) breakMinutes else focusMinutes)
+                                    },
+                                    onPause = { pulse(); store.pauseOrResume() },
+                                    onEnd = { endConfirmation = true },
+                                    onTheme = {
+                                        store.prefs.edit().putInt("timer_theme", it.ordinal).apply()
+                                    },
+                                    onSound = {
+                                        store.prefs.edit().putString("music_track", it.name).apply()
+                                        syncAudio()
+                                    },
+                                    onMiniTimer = {
+                                        if (Settings.canDrawOverlays(context)) showFloatingTimer()
+                                        else runCatching { timerOverlayPermission.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            Uri.parse("package:" + context.packageName))) }.onFailure {
+                                            Toast.makeText(context, "Open Android Settings and allow display over other apps.", Toast.LENGTH_LONG).show()
+                                        }
+                                    },
+                                    onGoal = { destination = Destination.PROGRESS },
+                                    shortcuts = { StudyShortcuts(readContentRules(store.prefs)) }
                                 )
-                            }
-                            Destination.PLANNER -> {
-                                val schedules = remember(planner, scheduleRevision) { planner.schedules() }
-                                val exactAlarms = remember(resumes) {
-                                    Build.VERSION.SDK_INT < 31 ||
-                                        context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+                                Destination.BLOCK -> {
+                                    val policy = remember(context) { context.getSystemService(DevicePolicyManager::class.java) }
+                                    val admin = remember(context) { ComponentName(context, StudyAdmin::class.java) }
+                                    var adminActive by remember(resumes) { mutableStateOf(policy?.isAdminActive(admin) == true) }
+                                    val blockAccess = remember(resumes) { apps.hasBlockAccess() }
+                                    BlockPage(
+                                        apps, store, blockAccess, usageAccess, active?.strict == true, today, resumes,
+                                        appProtection = protectionRunning, protectionReady = usageAccess && overlayAccess,
+                                        onSubpage = { blockSubpage = it },
+                                        onAppProtection = { protectionSetup = true },
+                                        onBlockAccess = { disclosure = true },
+                                        adminActive = adminActive,
+                                        onAdmin = {
+                                            if (adminActive) {
+                                                policy?.removeActiveAdmin(admin)
+                                                adminActive = false
+                                            } else openSettings(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN, Bundle().apply {
+                                                putParcelable(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
+                                                putString(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                                                    "Adds an extra confirmation step before uninstalling StudyOrbit. You can remove access from Android Settings.")
+                                            })
+                                        }
+                                    )
                                 }
-                                PlannerPage(
-                                    schedules, today, active != null, active?.strict == true, exactAlarms,
-                                    onExactAlarms = {
-                                        openSettings(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, data = Uri.parse("package:${context.packageName}"))
-                                    },
-                                    onSave = { updated, reminder ->
-                                        planner.save(updated)
-                                        scheduleRevision++
-                                        if (reminder) requestNotifications()
-                                    },
-                                    onStart = { launchSession(it.minutes, it.name) }
+                                Destination.PLANNER -> {
+                                    val schedules = remember(planner, scheduleRevision) { planner.schedules() }
+                                    val exactAlarms = remember(resumes) {
+                                        Build.VERSION.SDK_INT < 31 ||
+                                            context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+                                    }
+                                    PlannerPage(
+                                        schedules, today, active != null, active?.strict == true, exactAlarms,
+                                        onExactAlarms = {
+                                            openSettings(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, data = Uri.parse("package:${context.packageName}"))
+                                        },
+                                        onSave = { updated, reminder ->
+                                            planner.save(updated)
+                                            scheduleRevision++
+                                            if (reminder) requestNotifications()
+                                        },
+                                        onStart = { launchSession(it.minutes, it.name) }
+                                    )
+                                }
+                                Destination.PROGRESS -> ProgressPage(
+                                    history, today, goal, apps, store, usageAccess,
+                                    onFocus = { model.reset(); destination = Destination.FOCUS },
+                                    onUsageAccess = { openSettings(Settings.ACTION_USAGE_ACCESS_SETTINGS) }
                                 )
                             }
-                            Destination.PROGRESS -> ProgressPage(
-                                history, today, goal, apps, store, usageAccess,
-                                onFocus = { result = -1; destination = Destination.FOCUS },
-                                onUsageAccess = { openSettings(Settings.ACTION_USAGE_ACCESS_SETTINGS) }
-                            )
                         }
+                        if (!secondaryPage) Spacer(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(8.dp).background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(listOf(background.copy(alpha = 0f), background))))
                     }
                 }
                 if (!secondaryPage) BottomTabs(destination) { destination = it }
@@ -445,22 +406,31 @@ private fun StudyOrbit(
         }
         if (protectionSetup) AlertDialog(
             onDismissRequest = { protectionSetup = false },
-            title = { Text("Whole-app protection") },
+            title = { Text(stringResource(R.string.whole_app_protection)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Block selected apps during focus or when they reach a daily limit. StudyOrbit checks which app is open and shows a blocking screen.")
-                    if (!usageAccess) TextButton(onClick = { openSettings(Settings.ACTION_USAGE_ACCESS_SETTINGS) }) {
-                        Text("Allow Usage Access")
-                    }
-                    if (!overlayAccess) TextButton(onClick = {
-                        openSettings(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, data = Uri.parse("package:${context.packageName}"))
-                    }) { Text("Allow display over other apps") }
-                    if (usageAccess && overlayAccess) Text("Both permissions are ready.", color = Forest)
+                    Text(stringResource(R.string.block_selected_apps_during_focus_or_when))
+                    PermissionStep(stringResource(R.string.usage_access), usageAccess)
+                    PermissionStep(stringResource(R.string.display_over_other_apps), overlayAccess)
+                    val advanced = remember(resumes) { apps.hasBlockAccess() }
+                    PermissionStep(stringResource(R.string.accessibility_optional), advanced)
+                    if (usageAccess && overlayAccess && !advanced) TextButton(onClick = {
+                        protectionSetup = false
+                        disclosure = true
+                    }) { Text(stringResource(R.string.set_up_advanced_filters)) }
                 }
             },
             confirmButton = {
-                TextButton(enabled = active?.strict != true && (protectionRunning || (usageAccess && overlayAccess)),
+                Button(enabled = active?.strict != true,
                     onClick = {
+                        if (!protectionRunning && !usageAccess) {
+                            openSettings(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                            return@Button
+                        }
+                        if (!protectionRunning && !overlayAccess) {
+                            openSettings(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, data = Uri.parse("package:${context.packageName}"))
+                            return@Button
+                        }
                         store.prefs.edit().putBoolean(UsageBlockService.ENABLED, !protectionRunning).apply()
                         if (protectionRunning) context.stopService(Intent(context, UsageBlockService::class.java))
                         else {
@@ -468,9 +438,9 @@ private fun StudyOrbit(
                             requestNotifications()
                         }
                         protectionSetup = false
-                    }) { Text(if (protectionRunning) "Stop protection" else "Start protection") }
+                    }) { Text(when { protectionRunning -> stringResource(R.string.stop_protection); !usageAccess -> stringResource(R.string.allow_usage_access); !overlayAccess -> stringResource(R.string.allow_overlay); else -> stringResource(R.string.start_protection) }) }
             },
-            dismissButton = { TextButton(onClick = { protectionSetup = false }) { Text("Close") } }
+            dismissButton = { TextButton(onClick = { protectionSetup = false }) { Text(stringResource(R.string.close)) } }
         )
 
         if (settings) SettingsDialog(
@@ -482,15 +452,9 @@ private fun StudyOrbit(
                 })
             },
             onSave = { focus, rest, target, nextTheme, nextSound, nextNudges ->
-                focusMinutes = focus
-                breakMinutes = rest
-                goal = target
                 store.focusMinutes = focus
                 store.breakMinutes = rest
                 store.goalMinutes = target
-                theme = nextTheme
-                sound = nextSound
-                nudges = nextNudges
                 store.prefs.edit().putInt("timer_theme", nextTheme.ordinal).putString("music_track", nextSound.name)
                     .putBoolean("focus_nudges", nextNudges).apply()
                 syncAudio()
@@ -498,19 +462,19 @@ private fun StudyOrbit(
             }
         )
         if (strictConfirmation) OrbitSheet({ strictConfirmation = false }) {
-            OrbitHeading("Stay in your orbit?", size = 26)
-            Text("Strict Mode hides Pause, Resume, End, and Float timer. Your blocking rules cannot be changed until the session finishes.",
+            OrbitHeading(stringResource(R.string.stay_in_your_orbit), size = 26)
+            Text(stringResource(R.string.strict_mode_hides_pause_resume_end_and),
                 color = Muted, fontSize = 16.sp, lineHeight = 23.sp)
             Spacer(Modifier.height(22.dp))
             Text("$focusMinutes-minute focus" + if (subject.isBlank()) "" else " · $subject",
                 color = Accent, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(28.dp))
-            OrbitButton("Start strict session", { strictConfirmation = false; launchSession(focusMinutes) }, Modifier.fillMaxWidth())
-            OrbitButton("Not now", { strictConfirmation = false }, Modifier.fillMaxWidth(), primary = false, rounded = false)
+            OrbitButton(stringResource(R.string.start_strict_session), { strictConfirmation = false; launchSession(focusMinutes) }, Modifier.fillMaxWidth())
+            OrbitButton(stringResource(R.string.not_now), { strictConfirmation = false }, Modifier.fillMaxWidth(), primary = false, rounded = false)
         }
         if (disclosure) AlertDialog(
             onDismissRequest = { disclosure = false },
-            title = { Text("Enable advanced filters") },
+            title = { Text(stringResource(R.string.enable_advanced_filters)) },
             text = {
                 Text(stringResource(R.string.blocking_disclosure))
             },
@@ -518,9 +482,9 @@ private fun StudyOrbit(
                 TextButton(onClick = {
                     disclosure = false
                     openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                }) { Text("Agree & open settings") }
+                }) { Text(stringResource(R.string.agree_open_settings)) }
             },
-            dismissButton = { TextButton(onClick = { disclosure = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { disclosure = false }) { Text(stringResource(R.string.cancel)) } }
         )
         if (endConfirmation) OrbitSheet({ endConfirmation = false }) {
             val stopwatch = active?.mode == TimerMode.STOPWATCH
@@ -528,19 +492,11 @@ private fun StudyOrbit(
             Text(if (stopwatch) "Full minutes on the stopwatch count toward your goal."
                 else "Unfinished countdown rounds don’t add study minutes. A completed round is always saved.",
                 color = Muted, fontSize = 16.sp, lineHeight = 23.sp)
-            Spacer(Modifier.height(43.dp))
-            OrbitButton("Keep going", { endConfirmation = false }, Modifier.fillMaxWidth(), primary = !stopwatch)
+            Spacer(Modifier.height(40.dp))
+            OrbitButton(stringResource(R.string.keep_going), { endConfirmation = false }, Modifier.fillMaxWidth(), primary = !stopwatch)
             OrbitButton(if (stopwatch) "Save & finish" else "End session", {
                 endConfirmation = false
-                val previous = active
-                val time = previous?.displayTime() ?: 0L
-                store.stop()
-                refresh()
-                if (previous != null && result < 0) {
-                    result = 0
-                    resultKind = if (stopwatch) FocusResult.STOPWATCH else FocusResult.ENDED
-                }
-                if (previous != null && resultKind in listOf(FocusResult.STOPWATCH, FocusResult.ENDED)) resultTime = time
+                model.finish()
                 syncAudio()
             }, Modifier.fillMaxWidth(), primary = stopwatch, rounded = false)
         }
@@ -564,7 +520,7 @@ private fun AppHeader(
         }
         IconButton(onClick = onSettings, modifier = Modifier.background(OrbitSurface, CircleShape)) {
             Image(painterResource(R.drawable.fig_sun),
-                contentDescription = "Settings", modifier = Modifier.size(24.dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Ink))
+                contentDescription = stringResource(R.string.theme_settings), modifier = Modifier.size(24.dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Ink))
         }
     }
 }
@@ -575,14 +531,23 @@ private fun ActiveTimerLink(session: Session, onTimer: () -> Unit) {
     val stopwatch = session.mode == TimerMode.STOPWATCH
     val status = when {
         session.strict -> "Strict focus"
-        !session.running -> "Paused"
+        !session.running -> stringResource(R.string.focus_paused)
         session.mode == TimerMode.POMODORO -> "Pomodoro"
         stopwatch -> "Stopwatch"
         session.phase == Phase.BREAK -> "Break running"
         else -> "Focus running"
     }
-    Text("$status · ${timerDigits(time.value ?: session.remaining, stopwatch)}  → Return to timer",
-        Modifier.clickable(onClick = onTimer, role = Role.Button), color = Accent, fontSize = 14.sp, lineHeight = 19.sp)
+    Row(
+        Modifier.clickable(onClickLabel = stringResource(R.string.return_to_timer), role = Role.Button, onClick = onTimer)
+            .padding(vertical = 4.dp).clip(CircleShape).background(AccentSurface)
+            .heightIn(min = 40.dp).padding(start = 14.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text("$status · ${timerDigits(time.value ?: session.remaining, stopwatch)}", color = Accent, fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold, style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"))
+        Icon(painterResource(R.drawable.ic_next), null, Modifier.size(16.dp), tint = Accent)
+    }
 }
 
 @Composable
@@ -590,22 +555,25 @@ private fun BottomTabs(current: Destination, onSelect: (Destination) -> Unit) {
     Surface(
         modifier = Modifier.widthIn(max = 580.dp).fillMaxWidth()
             .padding(start = 16.dp, end = 16.dp, top = 5.dp, bottom = 6.dp),
-        shape = RoundedCornerShape(29.dp), color = Ink, shadowElevation = 4.dp
+        shape = RoundedCornerShape(29.dp), color = Color(0xFF211E38), shadowElevation = 4.dp
     ) {
         Row(Modifier.selectableGroup().padding(5.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             Destination.entries.forEach { tab ->
                 val selected = tab == current
+                val pill by animateColorAsState(
+                    if (selected) Color(0xFFE6DEFF) else Color(0x00E6DEFF), tween(180), label = "Tab highlight"
+                )
                 Column(
                     modifier = Modifier.weight(1f).heightIn(min = 58.dp).clip(RoundedCornerShape(24.dp))
-                        .background(if (selected) Color(0xFFE6DEFF) else Color.Transparent)
+                        .background(pill)
                         .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(tab) })
                         .padding(horizontal = 3.dp, vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically)
                 ) {
                     Image(painterResource(if (selected) tab.selectedIcon else tab.icon), null, Modifier.size(22.dp),
-                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(if (selected) Ink else Color(0xFFE1DEEE)))
-                    Text(tab.label, color = if (selected) Ink else Color(0xFFE1DEEE), fontSize = 11.sp, lineHeight = 14.sp,
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(if (selected) Color(0xFF211E38) else Color(0xFFE1DEEE)))
+                    Text(tab.label, color = if (selected) Color(0xFF211E38) else Color(0xFFE1DEEE), fontSize = 13.sp, lineHeight = 14.sp,
                         textAlign = TextAlign.Center, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
                 }
             }
@@ -636,38 +604,38 @@ private fun SettingsDialog(
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(start = 24.dp, end = 24.dp, top = orbitTopPadding(), bottom = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             IconButton(onClick = onDismiss, modifier = Modifier.offset(x = (-17).dp)) {
-                Text("‹", Modifier.semantics { contentDescription = "Back" }, color = Accent, fontSize = 28.sp)
+                OrbitIcon(R.drawable.ic_previous, stringResource(R.string.back))
             }
             Row(
                 Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OrbitHeading("Study preferences", Modifier.weight(1f))
+                OrbitHeading(stringResource(R.string.study_preferences), Modifier.weight(1f))
                 Image(painterResource(R.drawable.ic_studyorbit), null, Modifier.size(38.dp))
             }
-            Text("Saved on this device · no account needed", color = Muted, fontSize = 13.sp)
-            Spacer(Modifier.height(13.dp))
+            Text(stringResource(R.string.saved_on_this_device_no_account_needed), color = Muted, fontSize = 13.sp)
+            Spacer(Modifier.height(12.dp))
             PreferenceNumber("Focus duration", focusText, { focusText = it }, "min", 1..180)
             PreferenceNumber("Short break", restText, { restText = it }, "min", 1..180)
             PreferenceNumber("Long break", longBreak, { longBreak = it }, "min", 1..180)
             PreferenceNumber("Pomodoro rounds", rounds, { rounds = it }, " ·  2–12", 2..12)
             PreferenceNumber("Daily goal", goalText, { goalText = it }, "min  ·  1–720", 1..720)
             MusicPicker(selectedSound) { selectedSound = it }
-            PreferenceChoice("Theme", selectedTheme.label, TimerTheme.entries, { it.label }, { selectedTheme = it })
-            Spacer(Modifier.height(7.dp))
-            ToggleRule("Companion nudges", "", showNudges) { showNudges = it }
+            ThemePicker(selectedTheme, onSelect = { selectedTheme = it })
+            Spacer(Modifier.height(8.dp))
+            ToggleRule(stringResource(R.string.companion_nudges), "", showNudges) { showNudges = it }
             TextButton(onClick = onNotifications, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 58.dp)) {
-                Text("Notification settings  ↗", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.notification_settings), fontWeight = FontWeight.SemiBold)
             }
-            OrbitButton("Save settings", {
+            OrbitButton(stringResource(R.string.save_settings), {
                 store.longBreakMinutes = d
                 store.rounds = e
                 onSave(a, b, c, selectedTheme, selectedSound, showNudges)
             }, Modifier.fillMaxWidth(), enabled = a in 1..180 && b in 1..180 && c in 1..720 && d in 1..180 && e in 2..12)
-            OrbitButton("Cancel", onDismiss, Modifier.fillMaxWidth(), primary = false, rounded = false)
+            OrbitButton(stringResource(R.string.cancel), onDismiss, Modifier.fillMaxWidth(), primary = false, rounded = false)
         }
     }
 }
@@ -675,27 +643,15 @@ private fun SettingsDialog(
 @Composable
 private fun PreferenceNumber(label: String, value: String, onChange: (String) -> Unit, suffix: String, range: IntRange) {
     OrbitField(label, value, { onChange(it.filter(Char::isDigit).take(3)) }, Modifier.fillMaxWidth(),
-        suffix = suffix, numeric = true, inline = true, error = value.toIntOrNull() !in range)
+        suffix = suffix, numeric = true, inline = true, error = value.toIntOrNull() !in range,
+        errorText = stringResource(R.string.error_range, range.first, range.last))
 }
 
 @Composable
-private fun <T> PreferenceChoice(
-    label: String, current: String, options: List<T>, title: (T) -> String, onChoice: (T) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 54.dp).clip(FieldShape).background(OrbitSurface)
-                .clickable(role = Role.Button) { expanded = true }.padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(label, Modifier.weight(1.25f), color = Ink, fontSize = 14.sp)
-            Text(current, Modifier.weight(1f), color = Accent, fontSize = 14.sp)
-        }
-        DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { item ->
-                DropdownMenuItem(text = { Text(title(item)) }, onClick = { onChoice(item); expanded = false })
-            }
-        }
+private fun PermissionStep(label: String, granted: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (granted) OrbitIcon(R.drawable.ic_orbit_check, stringResource(R.string.granted))
+        else Box(Modifier.size(24.dp).padding(4.dp).then(Modifier.border(1.dp, Muted, CircleShape)))
+        Text(label, color = Ink)
     }
 }

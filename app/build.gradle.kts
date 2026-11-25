@@ -27,8 +27,8 @@ android {
         applicationId = "dev.stillpoint.focus"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.8"
+        versionCode = 13
+        versionName = "1.9"
     }
 
     buildFeatures { compose = true }

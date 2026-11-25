@@ -21,7 +21,7 @@ Get the optimized APK from the [latest GitHub release](https://github.com/truepu
 
 | Focus | Block | Planner | Progress |
 | --- | --- | --- | --- |
-| <img src="docs/screenshots/focus.png" width="185" alt="Focus tab with the illustrated observatory timer, duration presets, and start button"> | <img src="docs/screenshots/block.png" width="185" alt="Block tab with distraction controls and study rules"> | <img src="docs/screenshots/planner.png" width="185" alt="Planner tab with the weekly study calendar"> | <img src="docs/screenshots/progress.png" width="185" alt="Progress tab with the daily goal, weekly study time, and screen time"> |
+| <img src="docs/screenshots/focus.png" width="185" alt="Focus tab with the illustrated observatory timer, subject chip, and start button"> | <img src="docs/screenshots/block.png" width="185" alt="Block tab with distraction controls and study rules"> | <img src="docs/screenshots/planner.png" width="185" alt="Planner tab with the weekly study calendar"> | <img src="docs/screenshots/progress.png" width="185" alt="Progress tab with the daily goal, weekly study time, and screen time"> |
 
 ## Build
 
@@ -33,6 +33,6 @@ Use JDK 17 and Android SDK Platform 35. The app supports Android 8.0 and later.
 | Optimized for local install | `./gradlew assembleOptimized` | `.\gradlew.bat assembleOptimized` |
 
 The optimized build uses R8 and the local Android debug signing key.
-The build also generates the optional domain catalog ZIP under `app/build/outputs/domain-catalog`. Release v1.5 serves this ZIP alongside the APK.
+The build also generates the optional domain catalog ZIP under `app/build/outputs/domain-catalog`. Publish this ZIP alongside the matching APK.
 
 The bundled adult-domain list comes from [The Block List Project](https://github.com/blocklistproject/Lists), which releases it under [the Unlicense](https://github.com/blocklistproject/Lists/blob/main/LICENSE).

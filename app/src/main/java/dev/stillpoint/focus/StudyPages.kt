@@ -1,5 +1,6 @@
 package dev.stillpoint.focus
 
+import androidx.compose.ui.res.stringResource
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import android.util.LruCache
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
@@ -124,10 +126,10 @@ internal fun BlockPage(
         if (showCatalog) {
             Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = orbitTopPadding())) {
                 BlockSubpageTitle("Choose apps", ::closePage)
-                Spacer(Modifier.height(15.dp))
-                OrbitField("Search installed apps", query, { query = it }, Modifier.fillMaxWidth(),
+                Spacer(Modifier.height(16.dp))
+                OrbitField(stringResource(R.string.search_installed_apps), query, { query = it }, Modifier.fillMaxWidth(),
                     placeholder = "App name")
-                Spacer(Modifier.height(23.dp))
+                Spacer(Modifier.height(24.dp))
                 Text("Eligible apps" + (apps?.let { " · ${it.size} results" } ?: ""),
                     color = Muted, fontSize = 13.sp)
             }
@@ -146,13 +148,13 @@ internal fun BlockPage(
                         active = blockAccess
                     )
                     Spacer(Modifier.height(8.dp))
-                    Text("Filters short videos and supported sites using the content visible on screen.",
+                    Text(stringResource(R.string.filters_short_videos_and_supported_sites_using),
                         color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
                     if (!blockAccess) {
-                        Spacer(Modifier.height(21.dp))
-                        OrbitButton("Set up Accessibility", onBlockAccess, Modifier.fillMaxWidth(), enabled = !locked)
+                        Spacer(Modifier.height(20.dp))
+                        OrbitButton(stringResource(R.string.set_up_accessibility), onBlockAccess, Modifier.fillMaxWidth(), enabled = !locked)
                     }
-                    OrbitHeading("Short-video filters", Modifier.padding(top = 20.dp, bottom = 3.dp), 19)
+                    OrbitHeading(stringResource(R.string.short_video_filters), Modifier.padding(top = 20.dp, bottom = 3.dp), 19)
                 }
                 items(videoTargets, key = { "video:${it.pkg}" }) { target ->
                     VideoRule(target.label, modes.getValue(target), !locked) { mode ->
@@ -163,21 +165,21 @@ internal fun BlockPage(
                     }
                 }
                 item {
-                    Text("May vary with the version of each app.", Modifier.padding(vertical = 9.dp),
-                        color = Muted, fontSize = 11.sp)
-                    OrbitButton("Open web and YouTube rules", { contentDialog = true }, Modifier.fillMaxWidth(),
+                    Text(stringResource(R.string.may_vary_with_the_version_of_each), Modifier.padding(vertical = 9.dp),
+                        color = Muted, fontSize = 13.sp)
+                    OrbitButton(stringResource(R.string.open_web_and_youtube_rules), { contentDialog = true }, Modifier.fillMaxWidth(),
                         primary = false, rounded = false)
                     Spacer(Modifier.height(8.dp))
-                    ToggleRule("Cover split-screen & floating apps", "", coverWindows, !locked) { enabled ->
+                    ToggleRule(stringResource(R.string.cover_split_screen_floating_apps), "", coverWindows, !locked) { enabled ->
                         if (!store.strictWindow()) {
                             store.prefs.edit().putBoolean("cover_small_windows", enabled).apply()
                             version++
                         }
                     }
                     TextButton(onClick = onAdmin, enabled = !locked, contentPadding = PaddingValues(0.dp)) {
-                        Text(if (adminActive) "Manage uninstall protection  ›" else "Set up uninstall protection  ›")
+                        Text(if (adminActive) "Manage uninstall protection" else "Set up uninstall protection")
                     }
-                    Text("Optional Android device admin", color = Muted, fontSize = 11.sp)
+                    Text(stringResource(R.string.optional_android_device_admin), color = Muted, fontSize = 13.sp)
                 }
             } else {
                 if (!showCatalog) {
@@ -185,7 +187,7 @@ internal fun BlockPage(
                         val enabled = appProtection && protectionReady
                         AtlasPanel(R.drawable.atlas_block) {
                             Column(Modifier.fillMaxWidth().padding(18.dp)) {
-                                Text("App protection", color = androidx.compose.ui.graphics.Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.app_protection), color = androidx.compose.ui.graphics.Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
                                 Text(when {
                                     enabled -> "Protection on"
                                     protectionReady -> "Ready to turn on"
@@ -193,16 +195,16 @@ internal fun BlockPage(
                                 }, color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp)
                                 Spacer(Modifier.height(30.dp))
                                 Button(onClick = onAppProtection, enabled = !locked,
-                                    colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFBAF3DA), contentColor = Ink)) {
+                                    colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFBAF3DA), contentColor = androidx.compose.ui.graphics.Color(0xFF211E38))) {
                                     Text(if (enabled) "Manage protection" else if (protectionReady) "Turn on protection" else "Set up protection")
                                 }
                             }
                         }
-                        if (locked) Text("Strict session active · rules are read-only",
+                        if (locked) Text(stringResource(R.string.strict_session_active_rules_are_read_only),
                             Modifier.padding(top = 12.dp), color = Accent, fontSize = 13.sp)
                     }
                     item {
-                        OrbitHeading("App rules", Modifier.padding(top = 15.dp), 19)
+                        OrbitHeading(stringResource(R.string.app_rules), Modifier.padding(top = 15.dp), 19)
                         Text(if (configuredApps.isEmpty()) "No rules yet" else "${configuredApps.size} configured",
                             Modifier.padding(top = 3.dp), color = Muted, fontSize = 13.sp)
                     }
@@ -210,9 +212,9 @@ internal fun BlockPage(
                 if (apps.isNullOrEmpty()) item {
                     if (!showCatalog && apps != null) {
                         Panel {
-                            Text("Choose apps to block or limit", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                            Text("You can set up rules before turning on protection.",
-                                Modifier.padding(top = 3.dp), color = Muted, fontSize = 12.sp)
+                            Text(stringResource(R.string.choose_apps_to_block_or_limit), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            Text(stringResource(R.string.you_can_set_up_rules_before_turning),
+                                Modifier.padding(top = 3.dp), color = Muted, fontSize = 13.sp)
                         }
                     } else Text(
                         when {
@@ -254,18 +256,18 @@ internal fun BlockPage(
                         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                             Text(app.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(description, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                            Text(description, color = Muted, fontSize = 13.sp, lineHeight = 17.sp)
                         }
-                        Text("›", color = Accent, fontSize = 23.sp)
+                        OrbitIcon(R.drawable.ic_next)
                     }
                 }
                 if (!showCatalog) {
                     item {
-                        OrbitButton("Choose apps", { screen = "catalog"; onSubpage(true) },
+                        OrbitButton(stringResource(R.string.choose_apps), { screen = "catalog"; onSubpage(true) },
                             Modifier.fillMaxWidth(), primary = false)
                     }
                     item {
-                        OrbitHeading("Advanced filters", Modifier.padding(top = 22.dp), 19)
+                        OrbitHeading(stringResource(R.string.advanced_filters), Modifier.padding(top = 22.dp), 19)
                         ProtectionStatus(
                             if (blockAccess) "Accessibility enabled" else "Optional · Requires Accessibility",
                             active = blockAccess, modifier = Modifier.padding(top = 5.dp, bottom = 11.dp)
@@ -276,16 +278,16 @@ internal fun BlockPage(
                         ) {
                             Row(Modifier.padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("Short videos, websites & YouTube", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                    Text("Reels, Shorts, Spotlight and study rules", color = Muted, fontSize = 12.sp)
+                                    Text(stringResource(R.string.short_videos_websites_youtube), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    Text(stringResource(R.string.reels_shorts_spotlight_and_study_rules), color = Muted, fontSize = 13.sp)
                                 }
-                                Text("›", Modifier.padding(start = 12.dp), color = Accent, fontSize = 23.sp)
+                                OrbitIcon(R.drawable.ic_next)
                             }
                         }
                         Text(
                             if (blockAccess && !appProtection) "Accessibility can still enforce your app rules."
                             else "Whole-app protection can run without Accessibility.",
-                            Modifier.padding(top = 15.dp), color = Muted, fontSize = 12.sp, lineHeight = 16.sp
+                            Modifier.padding(top = 15.dp), color = Muted, fontSize = 13.sp, lineHeight = 16.sp
                         )
                     }
                 }
@@ -295,7 +297,7 @@ internal fun BlockPage(
             val keyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
             val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
             val bottom = if (keyboardVisible) 8.dp else (screenHeight - 620.dp).coerceIn(8.dp, 112.dp)
-            OrbitButton("Show configured apps", ::closePage,
+            OrbitButton(stringResource(R.string.show_configured_apps), ::closePage,
                 Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 10.dp, bottom = bottom),
                 primary = false, rounded = false)
         }
@@ -318,7 +320,7 @@ private fun ProtectionStatus(label: String, active: Boolean, modifier: Modifier 
     val color = if (active) Forest else Accent
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(6.dp).background(color, CircleShape))
-        Text(label, color = color, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = color, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -329,7 +331,7 @@ internal fun BlockSubpageTitle(title: String, onClose: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         OrbitHeading(title, Modifier.weight(1f))
         IconButton(onClick = onClose) {
-            Text("×", Modifier.semantics { contentDescription = "Close" }, color = Accent, fontSize = 25.sp)
+            OrbitIcon(R.drawable.ic_close, androidx.compose.ui.res.stringResource(R.string.close))
         }
     }
 }
@@ -354,26 +356,27 @@ private fun RuleDialog(
             if (editable) {
                 Text(app.name, color = Accent, fontWeight = FontWeight.SemiBold)
                 Panel {
-                    ToggleRule("Block during focus", "Also applies to scheduled focus-rule windows.", focusOnly) { focusOnly = it }
+                    ToggleRule(stringResource(R.string.block_during_focus), "Also applies to scheduled focus-rule windows.", focusOnly) { focusOnly = it }
                 }
-                OrbitField("Daily time limit · 1–720 minutes", minutes, { minutes = it.filter(Char::isDigit).take(3) },
+                OrbitField(stringResource(R.string.daily_time_limit_1_720_minutes), minutes, { minutes = it.filter(Char::isDigit).take(3) },
                     Modifier.fillMaxWidth(), placeholder = "No daily limit", numeric = true, suffix = "minutes",
-                    error = minutes.isNotEmpty() && limit !in 1..720)
-                Text("Resets at local midnight. Clear the field to remove the limit.", color = Muted, fontSize = 12.sp)
+                    error = minutes.isNotEmpty() && limit !in 1..720,
+                    errorText = stringResource(R.string.error_limit_range))
+                Text(stringResource(R.string.resets_at_local_midnight_clear_the_field), color = Muted, fontSize = 13.sp)
                 if (limit > 0) Panel {
-                    ToggleRule("Lock limit until midnight", "Read-only until tomorrow once saved.", lock) { lock = it }
+                    ToggleRule(stringResource(R.string.lock_limit_until_midnight), "Read-only until tomorrow once saved.", lock) { lock = it }
                 }
-                Text("Category", color = Muted, fontSize = 13.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text(stringResource(R.string.category), color = Muted, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(AppTag.PRODUCTIVE, AppTag.DISTRACTING, AppTag.UNTAGGED).forEach { option ->
                         OrbitButton(option.label, { tag = option }, Modifier.weight(1f), primary = tag == option)
                     }
                 }
                 usage?.let { Text("Used today · ${it / MINUTE} min", color = Muted, fontSize = 13.sp) }
-                OrbitButton("Save rule", {
+                OrbitButton(stringResource(R.string.save_rule), {
                     onSave(AppRule(focusOnly, limit, tag, if (limit > 0 && lock) nextMidnight() else 0L))
                 }, Modifier.fillMaxWidth(), enabled = minutes.isEmpty() || limit in 1..720)
-                OrbitButton("Cancel", onDismiss, Modifier.fillMaxWidth(), primary = false, rounded = false)
+                OrbitButton(stringResource(R.string.cancel), onDismiss, Modifier.fillMaxWidth(), primary = false, rounded = false)
             } else {
                 Panel {
                     OrbitHeading(if (original.isLocked) "Locked until midnight" else "Strict session active", size = 18)
@@ -384,7 +387,7 @@ private fun RuleDialog(
                 Text("Block during focus · ${if (original.focusOnly) "On" else "Off"}", color = Muted)
                 Text("Daily limit · ${if (limit > 0) "$limit minutes" else "Off"}", color = Muted)
                 Text("Category · ${original.tag.label}", color = Muted)
-                OrbitButton("Back to Block", onDismiss, Modifier.fillMaxWidth())
+                OrbitButton(stringResource(R.string.back_to_block), onDismiss, Modifier.fillMaxWidth())
             }
         }
     }
@@ -392,13 +395,16 @@ private fun RuleDialog(
 
 @Composable
 internal fun ToggleRule(title: String, details: String, enabled: Boolean, editable: Boolean = true, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 56.dp)
+            .toggleable(value = enabled, enabled = editable, role = Role.Switch, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
             Text(title, color = Ink, fontWeight = FontWeight.SemiBold)
-            if (details.isNotEmpty()) Text(details, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+            if (details.isNotEmpty()) Text(details, color = Muted, fontSize = 13.sp, lineHeight = 17.sp)
         }
-        Switch(checked = enabled, enabled = editable, onCheckedChange = onChange,
-            modifier = Modifier.semantics { contentDescription = title },
+        Switch(checked = enabled, enabled = editable, onCheckedChange = null,
             colors = SwitchDefaults.colors(checkedThumbColor = OrbitSurface, checkedTrackColor = Accent,
                 uncheckedThumbColor = OrbitSurface, uncheckedTrackColor = Line, uncheckedBorderColor = Line))
     }
@@ -423,8 +429,8 @@ internal fun ProgressPage(
     val total = week.last().second
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(17.dp)
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
             AtlasPanel(R.drawable.atlas_progress) {
@@ -432,7 +438,7 @@ internal fun ProgressPage(
                     listOf(androidx.compose.ui.graphics.Color(0xE222305B), androidx.compose.ui.graphics.Color.Transparent)
                 )).padding(18.dp)) {
                     val white = androidx.compose.ui.graphics.Color.White
-                    Text("Today’s study goal", color = white, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.today_s_study_goal), color = white, fontWeight = FontWeight.SemiBold)
                     Text("$total / $goal min", color = white, fontSize = 34.sp, lineHeight = 44.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(18.dp))
                     LinearProgressIndicator(progress = { (total.toFloat() / goal).coerceIn(0f, 1f) },
@@ -444,25 +450,33 @@ internal fun ProgressPage(
         }
         item {
             Panel {
-                Text("Study rhythm", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Last 7 days · $weekTotal min · $weekSessions ${if (weekSessions == 1) "session" else "sessions"}",
+                Text(stringResource(R.string.study_rhythm), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (weekTotal > 0) {
+                    Text("Last 7 days · $weekTotal min · $weekSessions ${if (weekSessions == 1) "session" else "sessions"}",
                     color = Muted, fontSize = 13.sp)
-                WeeklyStudyChart(week)
-                if (weekTotal == 0) OrbitButton("Start a focus session", onFocus, Modifier.fillMaxWidth(), primary = false)
+                    WeeklyStudyChart(week)
+                } else {
+                    Text(stringResource(R.string.your_first_study_session_this_week_will), color = Muted)
+                    TextButton(onClick = onFocus) { Text(stringResource(R.string.start_a_focus_session)) }
+                }
             }
         }
         item { ScreenTimePanel(apps, store, usageAccess, today, onUsageAccess) }
         item {
-            Text("Recent sessions", Modifier.semantics { heading() }, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            if (recent.isEmpty()) Text("Completed study sessions will appear here.", color = Muted, fontSize = 12.sp)
+            Text(stringResource(R.string.recent_sessions), Modifier.semantics { heading() }, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            if (recent.isEmpty()) Text(stringResource(R.string.completed_study_sessions_will_appear_here), color = Muted, fontSize = 13.sp)
         }
         items(recent) { session ->
             val name = session.subject.ifBlank { "Focus session" }
-            val date = session.day.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+            val date = when (session.day) {
+                today -> stringResource(R.string.relative_today)
+                today.minusDays(1) -> stringResource(R.string.relative_yesterday)
+                else -> session.day.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(name, color = Ink)
-                    Text(date, color = Muted, fontSize = 12.sp)
+                    Text(date, color = Muted, fontSize = 13.sp)
                 }
                 Text("${session.minutes} min", color = Accent, fontWeight = FontWeight.Medium)
             }
@@ -486,7 +500,7 @@ private fun VideoRule(title: String, mode: Int, editable: Boolean, onMode: (Int)
                         label, Modifier.background(if (selected) AccentSurface else OrbitSurface, CircleShape)
                             .padding(horizontal = 8.dp, vertical = 5.dp),
                         color = if (selected && editable) Accent else Muted,
-                        fontSize = 12.sp, lineHeight = 16.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        fontSize = 13.sp, lineHeight = 16.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
             }

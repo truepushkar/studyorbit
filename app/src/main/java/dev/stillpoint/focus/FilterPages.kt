@@ -67,7 +67,7 @@ internal fun ContentRulesDialog(
                     else -> "Needs Accessibility · rules not enforced"
                 }, color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 OutlinedTextField(blocked, { blocked = it.take(4000) }, enabled = editable, isError = invalidBlocked,
-                    label = { Text("Always blocked sites") }, placeholder = { Text("example.com") }, maxLines = 4,
+                    label = { Text(stringResource(R.string.always_blocked_sites)) }, placeholder = { Text(stringResource(R.string.example_com)) }, maxLines = 4,
                     supportingText = { Text(if (invalidBlocked) "Enter valid domains or URLs." else "One domain or URL per line.") })
                 val catalogStatus = when {
                     catalogReady -> R.string.adult_catalog_ready
@@ -101,21 +101,21 @@ internal fun ContentRulesDialog(
                         }, Modifier.fillMaxWidth(), primary = false)
                     }
                 }
-                ToggleRule("Browser Study Mode", "Allow listed sites during focus in supported browsers.", browser, editable) { browser = it }
+                ToggleRule(stringResource(R.string.browser_study_mode), "Allow listed sites during focus in supported browsers.", browser, editable) { browser = it }
                 if (browser) OutlinedTextField(allowed, { allowed = it.take(4000) },
                     enabled = editable, isError = invalidAllowed,
-                    label = { Text("Allowed study sites") }, placeholder = { Text("khanacademy.org") }, maxLines = 4,
+                    label = { Text(stringResource(R.string.allowed_study_sites)) }, placeholder = { Text(stringResource(R.string.khanacademy_org)) }, maxLines = 4,
                     supportingText = { Text(if (invalidAllowed) "Enter valid domains or URLs." else "One domain or URL per line.") })
-                ToggleRule("YouTube Study Mode", "Block Shorts and filter the home feed and videos during focus.", youtube, editable) { youtube = it }
+                ToggleRule(stringResource(R.string.youtube_study_mode), "Block Shorts and filter the home feed and videos during focus.", youtube, editable) { youtube = it }
                 if (youtube) {
                     OutlinedTextField(channels, { channels = it.take(4000) }, enabled = editable,
-                        label = { Text("Allowed study channels") }, maxLines = 4,
-                        supportingText = { Text("One channel name or @handle per line. Add both if they differ.") })
+                        label = { Text(stringResource(R.string.allowed_study_channels)) }, maxLines = 4,
+                        supportingText = { Text(stringResource(R.string.one_channel_name_or_handle_per_line)) })
                 }
-                ToggleRule("Lock rules until midnight", "Changes are available again after the daily reset.", lock, editable) { lock = it }
-                Text("Browser and video detection depends on what each app exposes to Android Accessibility.",
-                    color = Muted, fontSize = 12.sp)
-                OrbitButton("Save rules", {
+                ToggleRule(stringResource(R.string.lock_rules_until_midnight), "Changes are available again after the daily reset.", lock, editable) { lock = it }
+                Text(stringResource(R.string.browser_and_video_detection_depends_on_what),
+                    color = Muted, fontSize = 13.sp)
+                OrbitButton(stringResource(R.string.save_rules), {
                     onSave(ContentRules(
                         blockedList.mapNotNull(::websiteHost).toSet(), allowedList.mapNotNull(::websiteHost).toSet(),
                         adult, browser, youtube, channelList, if (lock) nextMidnight() else 0
@@ -137,7 +137,7 @@ internal fun StudyShortcuts(rules: ContentRules) {
             .onFailure { android.widget.Toast.makeText(context, "No app can open this link.", android.widget.Toast.LENGTH_SHORT).show() }
     }
     if (rules.allowedHosts.isEmpty() && rules.channels.isEmpty()) {
-        Text("Add sites and channels under Block → Advanced filters.", color = Muted, fontSize = 13.sp)
+        Text(stringResource(R.string.add_sites_and_channels_under_block_advanced), color = Muted, fontSize = 13.sp)
     }
     rules.allowedHosts.sorted().forEach { host ->
         OrbitButton("$host  ↗", { launch("https://$host") }, Modifier.fillMaxWidth(), primary = false, rounded = false, container = OrbitSurface)
@@ -177,22 +177,22 @@ internal fun ScreenTimePanel(
         }
     }
     Panel {
-        Text("Device screen time", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-        Text("Not counted as study time", color = Muted, fontSize = 11.sp)
+        Text(stringResource(R.string.device_screen_time), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        Text(stringResource(R.string.not_counted_as_study_time), color = Muted, fontSize = 13.sp)
         Row(Modifier.fillMaxWidth().padding(top = 9.dp, bottom = 5.dp).clip(FieldShape).background(Night)) {
             listOf("Today", "Last 7 days").forEachIndexed { index, label ->
                 val selected = weekly == (index == 1)
                 Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(FieldShape).background(if (selected) AccentSurface else Night)
                     .selectable(selected, enabled = access) { weekly = index == 1 }, contentAlignment = Alignment.Center) {
-                    Text(label, color = Accent, fontSize = 12.sp)
+                    Text(label, color = Accent, fontSize = 13.sp)
                 }
             }
         }
         val entries = report.orEmpty()
         when {
             !access -> {
-                Text("Understand where your day goes.", Modifier.padding(vertical = 7.dp), color = Muted, fontSize = 13.sp)
-                OrbitButton("Allow Usage Access", onAccess, Modifier.fillMaxWidth(), primary = false)
+                Text(stringResource(R.string.understand_where_your_day_goes), Modifier.padding(vertical = 7.dp), color = Muted, fontSize = 13.sp)
+                OrbitButton(stringResource(R.string.allow_usage_access), onAccess, Modifier.fillMaxWidth(), primary = false)
             }
             entries.isEmpty() -> {
                 Text(if (!loaded) "Reading app usage…" else "No device usage recorded.",
@@ -204,7 +204,7 @@ internal fun ScreenTimePanel(
                     Text(usageLabel(sum), Modifier.weight(1f), color = Ink, fontSize = 28.sp, lineHeight = 34.sp,
                         fontWeight = FontWeight.SemiBold)
                     Text(if (weekly) "Avg. ${usageLabel(sum / 7)} / day" else "Total device usage",
-                        Modifier.weight(1f), color = Muted, fontSize = 11.sp)
+                        Modifier.weight(1f), color = Muted, fontSize = 13.sp)
                 }
                 val totals = entries.entries.groupBy { store.rule(it.key).tag }
                     .mapValues { (_, apps) -> apps.sumOf { it.value } }
@@ -221,14 +221,14 @@ internal fun ScreenTimePanel(
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Spacer(Modifier.size(6.dp).background(color, CircleShape))
-                                Text(tag.label, Modifier.padding(start = 4.dp), color = Muted, fontSize = 11.sp)
+                                Text(tag.label, Modifier.padding(start = 4.dp), color = Muted, fontSize = 13.sp)
                             }
                             Text(usageLabel(totals[tag] ?: 0L), color = Ink, fontSize = 13.sp)
                         }
                     }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 9.dp), color = Line)
-                Text("Most used", color = Muted, fontSize = 11.sp)
+                Text(stringResource(R.string.most_used), color = Muted, fontSize = 13.sp)
                 entries.entries.sortedByDescending { it.value }.take(4).forEach { (pkg, time) ->
                     UsageRow(names?.get(pkg) ?: pkg, time)
                 }

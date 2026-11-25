@@ -1,0 +1,14 @@
+<resources>
+    <color name="orbit_paper">#171629</color>
+    <color name="orbit_ink">#F7F4FF</color>
+    <color name="orbit_muted">#C6C5DD</color>
+    <color name="orbit_accent">#C5BCFF</color>
+    <color name="orbit_accent_surface">#312E50</color>
+    <color name="orbit_chart_sage">#A59EE9</color>
+    <color name="orbit_line">#47445F</color>
+    <color name="orbit_forest">#89DDC9</color>
+    <color name="orbit_orbit_surface">#232237</color>
+    <color name="orbit_night">#2C2A41</color>
+    <color name="orbit_on_accent">#242044</color>
+    <color name="orbit_orbit_track">#46415D</color>
+</resources>

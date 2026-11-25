@@ -29,7 +29,7 @@ class FloatingTimerService : Service() {
     private var panel: LinearLayout? = null
     private var position = .4f
     private var layout: WindowManager.LayoutParams? = null
-    private var dismissTarget: TextView? = null
+    private var dismissTarget: android.widget.ImageView? = null
     private var collapsed = false
     private var shownCollapsed: Boolean? = null
     private var controls: TimerControls? = null
@@ -195,12 +195,9 @@ class FloatingTimerService : Service() {
 
     private fun showDismissTarget() {
         if (dismissTarget != null) return
-        val target = TextView(this).apply {
-            text = "×"
-            textSize = 32f
-            gravity = Gravity.CENTER
-            includeFontPadding = false
-            setTextColor(Color.WHITE)
+        val target = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_close)
+            scaleType = android.widget.ImageView.ScaleType.CENTER
             background = shape("#413955", radius = 32)
             contentDescription = "Drop here to hide timer"
         }

@@ -1,0 +1,5 @@
+<resources>
+    <style name="Widget.StudyOrbit.Card" parent="OrbitWidgetCardBase">
+        <item name="android:clipToOutline">true</item>
+    </style>
+</resources>

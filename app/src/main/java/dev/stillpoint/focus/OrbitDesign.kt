@@ -9,9 +9,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +26,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -43,18 +51,18 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 
-internal val Paper = Color(0xFFF8F6F2)
-internal val Ink = Color(0xFF211E38)
-internal val Muted = Color(0xFF605F72)
-internal val Accent = Color(0xFF4541A0)
-internal val AccentSurface = Color(0xFFE9E5FC)
-internal val ChartSage = Color(0xFF8984CD)
-internal val Line = Color(0xFFDEDBE3)
-internal val Forest = Color(0xFF166558)
-internal val OrbitSurface = Color(0xFFFFFFFF)
-internal val Night = Color(0xFFEDEAF3)
-internal val OnAccent = Color(0xFFFFFFFF)
-internal val OrbitTrack = Color(0xFFD7D2E7)
+internal val Paper: Color @Composable get() = colorResource(R.color.orbit_paper)
+internal val Ink: Color @Composable get() = colorResource(R.color.orbit_ink)
+internal val Muted: Color @Composable get() = colorResource(R.color.orbit_muted)
+internal val Accent: Color @Composable get() = colorResource(R.color.orbit_accent)
+internal val AccentSurface: Color @Composable get() = colorResource(R.color.orbit_accent_surface)
+internal val ChartSage: Color @Composable get() = colorResource(R.color.orbit_chart_sage)
+internal val Line: Color @Composable get() = colorResource(R.color.orbit_line)
+internal val Forest: Color @Composable get() = colorResource(R.color.orbit_forest)
+internal val OrbitSurface: Color @Composable get() = colorResource(R.color.orbit_orbit_surface)
+internal val Night: Color @Composable get() = colorResource(R.color.orbit_night)
+internal val OnAccent: Color @Composable get() = colorResource(R.color.orbit_on_accent)
+internal val OrbitTrack: Color @Composable get() = colorResource(R.color.orbit_orbit_track)
 internal val CardShape = RoundedCornerShape(16.dp)
 internal val FieldShape = RoundedCornerShape(10.dp)
 
@@ -108,9 +116,10 @@ internal fun OrbitButton(
 internal fun OrbitField(
     label: String, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier,
     placeholder: String = "", suffix: String = "", numeric: Boolean = false,
-    inline: Boolean = false, error: Boolean = false
+    inline: Boolean = false, error: Boolean = false, errorText: String = ""
 ) {
     val interactions = remember { MutableInteractionSource() }
+    val focusManager = LocalFocusManager.current
     val focused by interactions.collectIsFocusedAsState()
     val outline = when {
         error -> MaterialTheme.colorScheme.error
@@ -136,10 +145,13 @@ internal fun OrbitField(
         interactionSource = interactions,
         singleLine = true, textStyle = fieldStyle,
         cursorBrush = SolidColor(Accent),
-        keyboardOptions = KeyboardOptions(keyboardType = if (numeric) KeyboardType.Number else KeyboardType.Text),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (numeric) KeyboardType.Number else KeyboardType.Text, imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
         decorationBox = { field ->
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (!inline) Text(label, color = if (error) MaterialTheme.colorScheme.error else Muted, fontSize = 12.sp)
+                if (!inline) Text(label, color = if (error) MaterialTheme.colorScheme.error else Muted, fontSize = 13.sp)
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 54.dp).background(OrbitSurface, FieldShape)
                         .border(1.dp, outline, FieldShape)
@@ -157,6 +169,10 @@ internal fun OrbitField(
                         }
                     }
                 }
+                if (error && errorText.isNotEmpty()) {
+                    Text(errorText, Modifier.padding(horizontal = 4.dp), color = MaterialTheme.colorScheme.error,
+                        fontSize = 13.sp, lineHeight = 17.sp)
+                }
             }
         }
     )
@@ -170,13 +186,14 @@ internal fun OrbitFullScreen(onClose: () -> Unit, content: @Composable () -> Uni
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+        val lightBars = !androidx.compose.foundation.isSystemInDarkTheme()
         SideEffect {
             window?.let {
                 it.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
                 it.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
                 WindowCompat.getInsetsController(it, it.decorView).apply {
-                    isAppearanceLightStatusBars = true
-                    isAppearanceLightNavigationBars = true
+                    isAppearanceLightStatusBars = lightBars
+                    isAppearanceLightNavigationBars = lightBars
                 }
             }
         }
@@ -202,11 +219,11 @@ private val LocalOrbitTopPadding = compositionLocalOf<Dp?> { null }
 
 
 internal val TimerTheme.pageColor: Color
-    get() = when (this) {
+    @Composable get() = when (this) {
         TimerTheme.ORBIT -> Paper
-        TimerTheme.FOREST -> Color(0xFFE2F1E4)
-        TimerTheme.DUSK -> Color(0xFFF9E3EC)
-        TimerTheme.OCEAN -> Color(0xFFE0EFF8)
+        TimerTheme.FOREST -> if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF192C26) else Color(0xFFE2F1E4)
+        TimerTheme.DUSK -> if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF302333) else Color(0xFFF9E3EC)
+        TimerTheme.OCEAN -> if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF1B2937) else Color(0xFFE0EFF8)
     }
 
 @Composable
@@ -228,3 +245,35 @@ internal fun AtlasPanel(
 
 // The four nodpi illustrations are density-independent. Retain at most two between tab visits.
 private val atlasIllustrations = LruCache<Int, ImageBitmap>(2)
+
+@Composable
+internal fun OrbitIcon(@DrawableRes icon: Int, description: String? = null) {
+    Icon(androidx.compose.ui.res.painterResource(icon), description, Modifier.size(24.dp), tint = Accent)
+}
+
+@Composable
+internal fun ThemePicker(selected: TimerTheme, onSelect: (TimerTheme) -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier.fillMaxWidth().clip(FieldShape).background(OrbitSurface).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(stringResource(R.string.timer_theme), color = Ink, fontSize = 14.sp)
+        Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            TimerTheme.entries.forEach { item ->
+                val chosen = item == selected
+                Column(
+                    Modifier.weight(1f).clip(FieldShape)
+                        .selectable(chosen, role = Role.RadioButton) { onSelect(item) }
+                        .heightIn(min = 48.dp).padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(Modifier.size(36.dp).background(item.pageColor, CircleShape)
+                        .border(if (chosen) 2.dp else 1.dp, if (chosen) Accent else Line, CircleShape))
+                    Text(item.label, color = if (chosen) Accent else Muted, fontSize = 13.sp,
+                        fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal)
+                }
+            }
+        }
+    }
+}

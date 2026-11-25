@@ -46,11 +46,16 @@ internal fun WeeklyStudyChart(week: List<Pair<LocalDate, Int>>) {
     val selectedLabel = if (selected == week.lastIndex) "Today" else dates[selected].short
     Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("$selectedLabel · $minutes min", Modifier.background(AccentSurface, CircleShape)
-            .padding(horizontal = 10.dp, vertical = 4.dp), color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            .padding(horizontal = 10.dp, vertical = 4.dp), color = Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.weight(1f))
-        Text("$scale min", color = Muted, fontSize = 11.sp)
+        Text("$scale min", color = Muted, fontSize = 13.sp)
     }
     Box(Modifier.fillMaxWidth().height(116.dp)) {
+        val accentSurfaceColor = AccentSurface
+        val orbitSurfaceColor = OrbitSurface
+        val chartSageColor = ChartSage
+        val accentColor = Accent
+        val lineColor = Line
         Spacer(Modifier.fillMaxWidth().height(82.dp).drawWithCache {
             val step = size.width / week.size
             val top = 8.dp.toPx()
@@ -70,25 +75,25 @@ internal fun WeeklyStudyChart(week: List<Pair<LocalDate, Int>>) {
                 lineTo(points.first().x, bottom)
                 close()
             }
-            val gradient = Brush.verticalGradient(listOf(ChartSage.copy(alpha = .42f), Color.Transparent))
+            val gradient = Brush.verticalGradient(listOf(chartSageColor.copy(alpha = .42f), Color.Transparent))
             val stroke = Stroke(2.dp.toPx())
             onDrawBehind {
                 gridLevels.forEach { y ->
-                    drawLine(Line, Offset(0f, y), Offset(size.width, y), 1.dp.toPx(), pathEffect = gridDash)
+                    drawLine(lineColor, Offset(0f, y), Offset(size.width, y), 1.dp.toPx(), pathEffect = gridDash)
                 }
                 drawPath(fill, gradient)
-                drawPath(line, Accent, style = stroke)
+                drawPath(line, accentColor, style = stroke)
                 for (point in points) {
-                    drawCircle(Accent, 3.5.dp.toPx(), point)
-                    drawCircle(OrbitSurface, 2.dp.toPx(), point)
+                    drawCircle(accentColor, 3.5.dp.toPx(), point)
+                    drawCircle(orbitSurfaceColor, 2.dp.toPx(), point)
                 }
                 val index = marker.value.toInt().coerceIn(0, points.lastIndex)
                 val start = points[index]
                 val end = points[(index + 1).coerceAtMost(points.lastIndex)]
                 val point = start + (end - start) * (marker.value - index)
-                drawLine(Accent.copy(alpha = .22f), Offset(point.x, top), Offset(point.x, bottom), 1.dp.toPx())
-                drawCircle(AccentSurface, 9.dp.toPx(), point)
-                drawCircle(Accent, 5.dp.toPx(), point)
+                drawLine(accentColor.copy(alpha = .22f), Offset(point.x, top), Offset(point.x, bottom), 1.dp.toPx())
+                drawCircle(accentSurfaceColor, 9.dp.toPx(), point)
+                drawCircle(accentColor, 5.dp.toPx(), point)
             }
         })
         Row(Modifier.fillMaxSize().selectableGroup()) {
@@ -99,7 +104,7 @@ internal fun WeeklyStudyChart(week: List<Pair<LocalDate, Int>>) {
                     .semantics { contentDescription = "${label.full}, $value study minutes" }
                     .padding(bottom = 8.dp), contentAlignment = Alignment.BottomCenter) {
                     Text(label.initial,
-                        color = if (selected == index) Accent else Muted, fontSize = 12.sp,
+                        color = if (selected == index) Accent else Muted, fontSize = 13.sp,
                         fontWeight = if (selected == index) FontWeight.Bold else FontWeight.Normal)
                 }
             }

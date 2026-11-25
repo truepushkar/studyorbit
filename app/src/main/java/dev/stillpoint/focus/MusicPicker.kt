@@ -1,5 +1,6 @@
 package dev.stillpoint.focus
 
+import androidx.compose.ui.res.stringResource
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -114,12 +115,12 @@ internal fun MusicPicker(current: Soundscape, onSelect: (Soundscape) -> Unit) {
         }
     }
     OrbitSheet({ open = false }) {
-        OrbitHeading("Focus music")
-        Text("Download a track to preview it and use it offline.", color = Muted)
+        OrbitHeading(stringResource(R.string.focus_music))
+        Text(stringResource(R.string.download_a_track_to_preview_it_and), color = Muted)
         TextButton({ onSelect(Soundscape.OFF); open = false }) {
             Text(if (current == Soundscape.OFF) "Off · selected" else "Turn music off")
         }
-        if (error) Text("Preview unavailable. Try again.", color = MaterialTheme.colorScheme.error)
+        if (error) Text(stringResource(R.string.preview_unavailable_try_again), color = MaterialTheme.colorScheme.error)
         Soundscape.entries.drop(1).forEach { item ->
             Column(Modifier.fillMaxWidth()) {
                 Text(item.label, color = Ink, style = MaterialTheme.typography.titleMedium)
@@ -145,7 +146,7 @@ internal fun MusicPicker(current: Soundscape, onSelect: (Soundscape) -> Unit) {
                         }) { Text(when (item) { loading -> "Downloading…"; failed -> "Retry download"; else -> "Download" }) }
                     }
                 }
-                if (failed == item) Text("Download failed. Check your connection and retry.", color = MaterialTheme.colorScheme.error)
+                if (failed == item) Text(stringResource(R.string.download_failed_check_your_connection_and_retry), color = MaterialTheme.colorScheme.error)
                 HorizontalDivider(color = Line)
             }
         }
