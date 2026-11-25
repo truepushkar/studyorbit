@@ -1,6 +1,10 @@
 <resources>
     <string name="app_name">StudyOrbit</string>
     <string name="open_app">Open StudyOrbit</string>
+    <string name="mini_timer_paused">Paused</string>
+    <string name="mini_timer_break">Break</string>
+    <string name="mini_timer_focus">Focus</string>
+    <string name="mini_timer_permission">Allow picture-in-picture in Android Settings.</string>
     <string name="service_description">Applies the app, video, browser, and YouTube study rules you choose. Screen content stays on your device.</string>
     <string name="blocking_disclosure">StudyOrbit uses Android Accessibility to identify apps, detect short-video viewers, and check the visible website address or YouTube channel against your rules. It can go back or cover a blocked screen. The screen content it inspects is never saved or shared.</string>
     <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">

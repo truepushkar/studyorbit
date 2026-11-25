@@ -36,6 +36,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,12 +57,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import java.time.LocalDate
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.withTimeoutOrNull
 
 class MainActivity : ComponentActivity() {
     private var resumeCount by mutableIntStateOf(0)
-    private var focusRequests by mutableIntStateOf(0)
-    private var plannerRequests by mutableIntStateOf(0)
+    private val routeRequests = Channel<Destination>(Channel.CONFLATED)
+    private val routes = routeRequests.receiveAsFlow()
     private var pinRequested = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,8 +76,8 @@ class MainActivity : ComponentActivity() {
         val store = FocusStore(this)
         val apps = DeviceApps(this)
         pinRequested = savedInstanceState?.getBoolean("focus_pin") == true
-        if (savedInstanceState == null) handleRoute(intent)
-        setContent { StudyOrbit(store, apps, resumeCount, focusRequests, plannerRequests, ::pin, ::releasePin) }
+        val initialDestination = routeDestination(intent) ?: Destination.FOCUS
+        setContent { StudyOrbit(store, apps, resumeCount, initialDestination, routes, ::pin, ::releasePin) }
     }
 
     override fun onResume() {
@@ -84,7 +87,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleRoute(intent)
+        routeDestination(intent)?.let { routeRequests.trySend(it) }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -92,11 +95,10 @@ class MainActivity : ComponentActivity() {
         super.onSaveInstanceState(outState)
     }
 
-    private fun handleRoute(intent: Intent) {
-        when (intent.action) {
-            SHOW_FOCUS -> focusRequests++
-            SHOW_PLANNER -> plannerRequests++
-        }
+    private fun routeDestination(intent: Intent): Destination? = when (intent.action) {
+        SHOW_FOCUS -> Destination.FOCUS
+        SHOW_PLANNER -> Destination.PLANNER
+        else -> null
     }
 
     private fun pin() {
@@ -129,12 +131,13 @@ private enum class Destination(val label: String, val subtitle: String, val icon
 
 @Composable
 private fun StudyOrbit(
-    store: FocusStore, apps: DeviceApps, resumes: Int, focusRequests: Int, plannerRequests: Int,
+    store: FocusStore, apps: DeviceApps, resumes: Int, initialDestination: Destination, routes: Flow<Destination>,
     onPin: () -> Unit, onReleasePin: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    var destination by rememberSaveable { mutableStateOf(Destination.FOCUS) }
+    var destination by rememberSaveable { mutableStateOf(initialDestination) }
+    val tabState = rememberSaveableStateHolder()
     var phase by rememberSaveable { mutableStateOf(Phase.FOCUS) }
     var settings by rememberSaveable { mutableStateOf(false) }
     var disclosure by rememberSaveable { mutableStateOf(false) }
@@ -145,7 +148,8 @@ private fun StudyOrbit(
     var result by rememberSaveable { mutableIntStateOf(-1) }
     var resultTime by rememberSaveable { mutableLongStateOf(0L) }
     var resultKind by rememberSaveable { mutableStateOf(FocusResult.FOCUS) }
-    var secondaryPage by remember { mutableStateOf(false) }
+    var blockSubpage by rememberSaveable { mutableStateOf(false) }
+    val secondaryPage = destination == Destination.BLOCK && blockSubpage
     var focusMinutes by remember { mutableIntStateOf(store.focusMinutes) }
     var breakMinutes by remember { mutableIntStateOf(store.breakMinutes) }
     var goal by remember { mutableIntStateOf(store.goalMinutes) }
@@ -254,21 +258,16 @@ private fun StudyOrbit(
         syncAudio()
     }
 
-    LaunchedEffect(focusRequests) {
-        if (focusRequests > 0) {
-            destination = Destination.FOCUS
-            settings = false
-            secondaryPage = false
-            disclosure = false
-        }
-    }
-
-    LaunchedEffect(plannerRequests) {
-        if (plannerRequests > 0) {
-            destination = Destination.PLANNER
-            settings = false
-            secondaryPage = false
-            disclosure = false
+    LaunchedEffect(lifecycle, routes) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            routes.collect {
+                destination = it
+                settings = false
+                disclosure = false
+                protectionSetup = false
+                strictConfirmation = false
+                endConfirmation = false
+            }
         }
     }
 
@@ -329,89 +328,91 @@ private fun StudyOrbit(
                 Column(Modifier.widthIn(max = 580.dp).fillMaxWidth().weight(1f)) {
                     if (!secondaryPage) AppHeader(destination, active, result, resultKind,
                         onTimer = { destination = Destination.FOCUS }, onSettings = { settings = true })
-                    when (destination) {
-                        Destination.FOCUS -> FocusPage(
-                            active = active, result = result, resultTime = resultTime, resultKind = resultKind,
-                            restMinutes = breakMinutes, rounds = store.rounds, longBreak = store.longBreakMinutes,
-                            onReset = { result = -1 },
-                            phase = active?.phase ?: if (mode == TimerMode.TIMER) phase else Phase.FOCUS,
-                            minutes = if (mode != TimerMode.TIMER || phase == Phase.FOCUS) focusMinutes else breakMinutes,
-                            mode = active?.mode ?: mode, strict = active?.strict ?: strict, theme = theme,
-                            sound = sound,
-                            streak = if (nudges) remember(history, today) { studyStreak(history, today) } else null,
-                            subject = subject,
-                            goal = goal,
-                            total = remember(history, today) { history.filter { it.day == today }.sumOf { it.minutes } },
-                            onMode = { mode = it; store.prefs.edit().putInt("timer_mode", it.ordinal).apply() },
-                            onStrict = { strict = it; store.prefs.edit().putBoolean("strict_preference", it).apply() },
-                            onPin = onPin,
-                            onPhase = { phase = it },
-                            onMinutes = {
-                                if (phase == Phase.FOCUS || mode != TimerMode.TIMER) { focusMinutes = it; store.focusMinutes = it }
-                                else { breakMinutes = it; store.breakMinutes = it }
-                            },
-                            onSubject = {
-                                subject = it.take(70)
-                                store.subject = subject
-                            },
-                            onStart = {
-                                if (strict && mode != TimerMode.STOPWATCH && (mode != TimerMode.TIMER || phase == Phase.FOCUS)) {
-                                    strictConfirmation = true
-                                } else launchSession(if (mode == TimerMode.TIMER && phase == Phase.BREAK) breakMinutes else focusMinutes)
-                            },
-                            onPause = { store.pauseOrResume(); refresh(); syncAudio() },
-                            onEnd = { endConfirmation = true },
-                            onTheme = {
-                                theme = it
-                                store.prefs.edit().putInt("timer_theme", it.ordinal).apply()
-                            },
-                            onSound = {
-                                sound = it
-                                store.prefs.edit().putInt("soundscape", it.ordinal).apply()
-                                syncAudio()
-                            },
-                            onMiniTimer = if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) ({
-                                context.startActivity(Intent(context, MiniTimerActivity::class.java)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                            }) else null,
-                            onGoal = { destination = Destination.PROGRESS },
-                            shortcuts = { StudyShortcuts(readContentRules(store.prefs)) }
-                        )
-                        Destination.BLOCK -> BlockPage(
-                            apps, store, blockAccess, usageAccess, active?.strict == true, today, resumes,
-                            appProtection = protectionRunning, protectionReady = usageAccess && overlayAccess,
-                            onSubpage = { secondaryPage = it },
-                            onAppProtection = { protectionSetup = true },
-                            onBlockAccess = { disclosure = true },
-                            adminActive = adminActive,
-                            onAdmin = {
-                                if (adminActive) {
-                                    policy?.removeActiveAdmin(admin)
-                                    adminActive = false
-                                } else openSettings(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN, Bundle().apply {
-                                    putParcelable(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
-                                    putString(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                                        "Adds an extra confirmation step before uninstalling StudyOrbit. You can remove access from Android Settings.")
-                                })
-                            }
-                        )
-                        Destination.PLANNER -> PlannerPage(
-                            schedules, today, active != null, active?.strict == true, exactAlarms,
-                            onExactAlarms = {
-                                openSettings(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, data = Uri.parse("package:${context.packageName}"))
-                            },
-                            onSave = { updated, reminder ->
-                                planner.save(updated)
-                                schedules = readSchedules(store.prefs)
-                                if (reminder) requestNotifications()
-                            },
-                            onStart = { launchSession(it.minutes, it.name) }
-                        )
-                        Destination.PROGRESS -> ProgressPage(
-                            history, today, goal, apps, store, usageAccess,
-                            onFocus = { result = -1; destination = Destination.FOCUS },
-                            onUsageAccess = { openSettings(Settings.ACTION_USAGE_ACCESS_SETTINGS) }
-                        )
+                    tabState.SaveableStateProvider(destination.name) {
+                        when (destination) {
+                            Destination.FOCUS -> FocusPage(
+                                active = active, result = result, resultTime = resultTime, resultKind = resultKind,
+                                restMinutes = breakMinutes, rounds = store.rounds, longBreak = store.longBreakMinutes,
+                                onReset = { result = -1 },
+                                phase = active?.phase ?: if (mode == TimerMode.TIMER) phase else Phase.FOCUS,
+                                minutes = if (mode != TimerMode.TIMER || phase == Phase.FOCUS) focusMinutes else breakMinutes,
+                                mode = active?.mode ?: mode, strict = active?.strict ?: strict, theme = theme,
+                                sound = sound,
+                                streak = if (nudges) remember(history, today) { studyStreak(history, today) } else null,
+                                subject = subject,
+                                goal = goal,
+                                total = remember(history, today) { history.filter { it.day == today }.sumOf { it.minutes } },
+                                onMode = { mode = it; store.prefs.edit().putInt("timer_mode", it.ordinal).apply() },
+                                onStrict = { strict = it; store.prefs.edit().putBoolean("strict_preference", it).apply() },
+                                onPin = onPin,
+                                onPhase = { phase = it },
+                                onMinutes = {
+                                    if (phase == Phase.FOCUS || mode != TimerMode.TIMER) { focusMinutes = it; store.focusMinutes = it }
+                                    else { breakMinutes = it; store.breakMinutes = it }
+                                },
+                                onSubject = {
+                                    subject = it.take(70)
+                                    store.subject = subject
+                                },
+                                onStart = {
+                                    if (strict && mode != TimerMode.STOPWATCH && (mode != TimerMode.TIMER || phase == Phase.FOCUS)) {
+                                        strictConfirmation = true
+                                    } else launchSession(if (mode == TimerMode.TIMER && phase == Phase.BREAK) breakMinutes else focusMinutes)
+                                },
+                                onPause = { store.pauseOrResume(); refresh(); syncAudio() },
+                                onEnd = { endConfirmation = true },
+                                onTheme = {
+                                    theme = it
+                                    store.prefs.edit().putInt("timer_theme", it.ordinal).apply()
+                                },
+                                onSound = {
+                                    sound = it
+                                    store.prefs.edit().putInt("soundscape", it.ordinal).apply()
+                                    syncAudio()
+                                },
+                                onMiniTimer = if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) ({
+                                    context.startActivity(Intent(context, MiniTimerActivity::class.java)
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                }) else null,
+                                onGoal = { destination = Destination.PROGRESS },
+                                shortcuts = { StudyShortcuts(readContentRules(store.prefs)) }
+                            )
+                            Destination.BLOCK -> BlockPage(
+                                apps, store, blockAccess, usageAccess, active?.strict == true, today, resumes,
+                                appProtection = protectionRunning, protectionReady = usageAccess && overlayAccess,
+                                onSubpage = { blockSubpage = it },
+                                onAppProtection = { protectionSetup = true },
+                                onBlockAccess = { disclosure = true },
+                                adminActive = adminActive,
+                                onAdmin = {
+                                    if (adminActive) {
+                                        policy?.removeActiveAdmin(admin)
+                                        adminActive = false
+                                    } else openSettings(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN, Bundle().apply {
+                                        putParcelable(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
+                                        putString(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                                            "Adds an extra confirmation step before uninstalling StudyOrbit. You can remove access from Android Settings.")
+                                    })
+                                }
+                            )
+                            Destination.PLANNER -> PlannerPage(
+                                schedules, today, active != null, active?.strict == true, exactAlarms,
+                                onExactAlarms = {
+                                    openSettings(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, data = Uri.parse("package:${context.packageName}"))
+                                },
+                                onSave = { updated, reminder ->
+                                    planner.save(updated)
+                                    schedules = readSchedules(store.prefs)
+                                    if (reminder) requestNotifications()
+                                },
+                                onStart = { launchSession(it.minutes, it.name) }
+                            )
+                            Destination.PROGRESS -> ProgressPage(
+                                history, today, goal, apps, store, usageAccess,
+                                onFocus = { result = -1; destination = Destination.FOCUS },
+                                onUsageAccess = { openSettings(Settings.ACTION_USAGE_ACCESS_SETTINGS) }
+                            )
+                        }
                     }
                 }
                 if (!secondaryPage) BottomTabs(destination) { destination = it }

@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
@@ -341,28 +340,20 @@ internal enum class FocusResult { FOCUS, BREAK, CYCLE, STOPWATCH, ENDED }
 @Composable
 internal fun rememberDisplayedTime(active: Session?): State<Long?> {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    return produceState(active?.displayTime(), active, lifecycle) {
-        value = active?.displayTime()
-        if (active?.running != true) return@produceState
+    val displayedTime = remember(active) { mutableStateOf(active?.displayTime()) }
+    LaunchedEffect(active, lifecycle) {
+        if (active?.running != true) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             val stopwatch = active.mode == TimerMode.STOPWATCH
             while (true) {
                 val next = active.displayTime()
-                value = next
+                displayedTime.value = next
                 if (!stopwatch && next == 0L) break
-                val remainder = next % 1000L
-                delay(if (stopwatch) 1000L - remainder else if (remainder == 0L) 1000L else remainder)
+                delay(timerTickDelay(next, stopwatch))
             }
         }
     }
-}
-
-internal fun timerDigits(display: Long, stopwatch: Boolean): String {
-    val seconds = if (stopwatch) display / 1000 else (display + 999) / 1000
-    val hours = if (stopwatch) seconds / 3600 else 0
-    val shownMinutes = if (hours > 0) seconds / 60 % 60 else seconds / 60
-    return if (hours > 0) String.format(Locale.ROOT, "%d:%02d:%02d", hours, shownMinutes, seconds % 60)
-        else String.format(Locale.ROOT, "%02d:%02d", shownMinutes, seconds % 60)
+    return displayedTime
 }
 
 @Composable
