@@ -7,7 +7,7 @@ StudyOrbit is an Android app for focus sessions and distraction blocking. It use
 - Plan one-time or repeating study sessions, and review study history and screen time.
 - Add the **Focus timer** or **Next study session** widget from the Android home-screen widget picker under StudyOrbit.
 
-During a session, tap **Float timer** and allow **Display over other apps** to show the timer at the left edge. Tap × to collapse it, the arrow to expand it, or **Hide timer** in its notification to dismiss it while the session continues.
+During a session, tap **Float timer** and allow **Display over other apps** to show the timer at the left edge. Use the chevrons to collapse or expand it. Drag it to reposition it, or drop it on the bottom × to hide it while the session continues. **Hide timer** is also available in its notification.
 
 Whole-app protection uses Android Usage Access and Display over other apps. Enable it from the Block tab. Advanced filters for short-video feeds, websites, and YouTube channels use optional Accessibility and depend on what each app exposes. Usage Access is also needed for screen-time reports.
 

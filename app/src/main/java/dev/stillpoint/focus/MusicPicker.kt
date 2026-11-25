@@ -20,6 +20,8 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.*
 
 private suspend fun downloadMusic(context: Context, track: Soundscape) = withContext(Dispatchers.IO) {
@@ -65,6 +67,9 @@ internal fun MusicPicker(current: Soundscape, onSelect: (Soundscape) -> Unit) {
     var failed by remember { mutableStateOf<Soundscape?>(null) }
     var preview by remember { mutableStateOf<Soundscape?>(null) }
     var error by remember { mutableStateOf(false) }
+    var savedTracks by remember(context) {
+        mutableStateOf(Soundscape.entries.asSequence().drop(1).filter { it.file(context).isFile }.toSet())
+    }
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) preview = null }
         lifecycle.addObserver(observer)
@@ -76,25 +81,36 @@ internal fun MusicPicker(current: Soundscape, onSelect: (Soundscape) -> Unit) {
         val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()
         val focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-            .setAudioAttributes(attributes).setOnAudioFocusChangeListener { if (it < 0) preview = null }.build()
+            .setAudioAttributes(attributes)
+            .setOnAudioFocusChangeListener { if (it < 0 && preview == item) preview = null }.build()
         val player = MediaPlayer()
+        var hasFocus = false
         try {
-            check(audio.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
             player.setAudioAttributes(attributes)
             player.setDataSource(item.file(context).absolutePath)
-            player.prepare()
-            player.setOnErrorListener { _, _, _ -> error = true; preview = null; true }
+            player.awaitPrepared()
+            hasFocus = audio.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            check(hasFocus)
+            player.setOnErrorListener { _, _, _ ->
+                if (preview == item) {
+                    error = true
+                    preview = null
+                }
+                true
+            }
             player.start()
             delay(minOf(15000L, player.duration.toLong()))
-            preview = null
+            if (preview == item) preview = null
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            error = true
-            preview = null
+            if (preview == item) {
+                error = true
+                preview = null
+            }
         } finally {
             player.release()
-            audio.abandonAudioFocusRequest(focus)
+            if (hasFocus) audio.abandonAudioFocusRequest(focus)
         }
     }
     OrbitSheet({ open = false }) {
@@ -105,11 +121,10 @@ internal fun MusicPicker(current: Soundscape, onSelect: (Soundscape) -> Unit) {
         }
         if (error) Text("Preview unavailable. Try again.", color = MaterialTheme.colorScheme.error)
         Soundscape.entries.drop(1).forEach { item ->
-            val saved = item.file(context).isFile
             Column(Modifier.fillMaxWidth()) {
                 Text(item.label, color = Ink, style = MaterialTheme.typography.titleMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (saved) {
+                    if (item in savedTracks) {
                         TextButton({ error = false; preview = if (preview == item) null else item }) {
                             Text(if (preview == item) "Stop preview" else "Preview")
                         }
@@ -119,7 +134,10 @@ internal fun MusicPicker(current: Soundscape, onSelect: (Soundscape) -> Unit) {
                             loading = item
                             failed = null
                             scope.launch {
-                                try { downloadMusic(context, item) }
+                                try {
+                                    downloadMusic(context, item)
+                                    savedTracks = savedTracks + item
+                                }
                                 catch (cancelled: CancellationException) { throw cancelled }
                                 catch (_: Exception) { failed = item }
                                 finally { loading = null }
@@ -132,4 +150,17 @@ internal fun MusicPicker(current: Soundscape, onSelect: (Soundscape) -> Unit) {
             }
         }
     }
+}
+
+private suspend fun MediaPlayer.awaitPrepared() = suspendCancellableCoroutine<Unit> { continuation ->
+    setOnPreparedListener {
+        setOnPreparedListener(null)
+        setOnErrorListener(null)
+        if (continuation.isActive) continuation.resume(Unit)
+    }
+    setOnErrorListener { _, _, _ ->
+        if (continuation.isActive) continuation.resumeWithException(IllegalStateException("Preview preparation failed"))
+        true
+    }
+    prepareAsync()
 }

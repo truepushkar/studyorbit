@@ -1,6 +1,7 @@
 package dev.stillpoint.focus
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,8 +17,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -56,24 +55,27 @@ internal fun FocusPage(
                 FocusModeBar(mode, onMode)
                 Spacer(Modifier.height(12.dp))
             } else {
-                Spacer(Modifier.height(8.dp))
                 val state = when {
-                    completed -> "✓  SESSION COMPLETE"
-                    active?.strict == true -> "◇  STRICT SESSION"
-                    active?.running == false -> "Ⅱ  PAUSED"
-                    mode == TimerMode.POMODORO -> "●  ${phase.label.uppercase()} · ROUND ${active?.round ?: 1} OF ${active?.rounds ?: rounds}"
-                    stopwatch -> "●  STOPWATCH RUNNING"
-                    phase == Phase.BREAK -> "●  BREAK IN PROGRESS"
-                    else -> "●  FOCUS IN PROGRESS"
+                    completed -> "Session complete"
+                    active?.strict == true -> "Strict session"
+                    active?.running == false -> "Paused"
+                    mode == TimerMode.POMODORO -> "${phase.label} · Round ${active?.round ?: 1} of ${active?.rounds ?: rounds}"
+                    stopwatch -> "Stopwatch running"
+                    phase == Phase.BREAK -> "Break in progress"
+                    else -> "Focus in progress"
                 }
-                Text(state, color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(6.dp))
+                Box(Modifier.fillMaxWidth().heightIn(min = 54.dp).clip(FieldShape).background(AccentSurface),
+                    contentAlignment = Alignment.Center) {
+                    Text(state, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Accent,
+                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                }
+                Spacer(Modifier.height(12.dp))
             }
 
             SessionPoster(active, result, resultTime, resultKind, phase, mode, minutes,
                 restMinutes, rounds, onEdit = if (ready && !stopwatch) ({ sheet = "duration" }) else null,
                 onPhase = if (ready && mode == TimerMode.TIMER) onPhase else null,
-                onStart = if (ready) onStart else null)
+                onStart = if (ready) onStart else null, onPause = onPause, onEnd = onEnd)
 
             if (completed) {
                 Spacer(Modifier.height(11.dp))
@@ -146,17 +148,10 @@ internal fun FocusPage(
                 if (nudge.isNotEmpty()) Text(nudge, Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
                     color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
             } else if (active != null) {
-                if (active.subject.isNotBlank() && phase == Phase.FOCUS) Text(active.subject, Modifier.padding(bottom = 12.dp), color = Ink)
                 if (active.strict) {
                     Text("Blocking rules locked until this session ends",
                         Modifier.fillMaxWidth().background(AccentSurface, FieldShape).padding(17.dp),
                         color = Accent, textAlign = TextAlign.Center, fontSize = 13.sp)
-                } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OrbitButton(if (active.running) "Pause" else "Resume", onPause, Modifier.weight(1f))
-                        OrbitButton(if (mode == TimerMode.POMODORO) "End" else "Finish", onEnd,
-                            Modifier.width(104.dp), primary = false)
-                    }
                 }
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -314,7 +309,8 @@ internal fun rememberDisplayedTime(active: Session?): State<Long?> {
 private fun SessionPoster(
     active: Session?, result: Int, resultTime: Long, resultKind: FocusResult, phase: Phase,
     mode: TimerMode, minutes: Int, restMinutes: Int, rounds: Int,
-    onEdit: (() -> Unit)?, onPhase: ((Phase) -> Unit)?, onStart: (() -> Unit)?
+    onEdit: (() -> Unit)?, onPhase: ((Phase) -> Unit)?, onStart: (() -> Unit)?,
+    onPause: () -> Unit, onEnd: () -> Unit
 ) {
     val time = rememberDisplayedTime(active)
     val stopwatch = mode == TimerMode.STOPWATCH
@@ -326,27 +322,61 @@ private fun SessionPoster(
     }
     val digits = timerDigits(display, if (result >= 0) resultKind == FocusResult.STOPWATCH else stopwatch)
     val white = androidx.compose.ui.graphics.Color.White
+    val savedSession = result > 0 && resultKind != FocusResult.BREAK && resultKind != FocusResult.ENDED
+    val elapsed = if (active != null && !stopwatch && active.duration > 0)
+        (1f - display.toFloat() / active.duration).coerceIn(0f, 1f) else 0f
     AtlasPanel(R.drawable.atlas_focus) {
-        Column(Modifier.fillMaxWidth().heightIn(min = 248.dp).padding(20.dp)) {
-            if (onPhase != null) {
-                Row(Modifier.selectableGroup().clip(CircleShape).background(white.copy(alpha = .14f))) {
-                    Phase.entries.forEach { option ->
-                        val selected = option == phase
-                        Box(Modifier.clip(CircleShape).background(if (selected) white else androidx.compose.ui.graphics.Color.Transparent)
-                            .selectable(selected, role = Role.Tab) { onPhase(option) }
-                            .heightIn(min = 48.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-                            Text(option.label, color = if (selected) Ink else white, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        val scrim = androidx.compose.ui.graphics.Brush.horizontalGradient(
+            listOf(androidx.compose.ui.graphics.Color(0xE9171632), androidx.compose.ui.graphics.Color(0x66171632),
+                androidx.compose.ui.graphics.Color.Transparent)
+        )
+        Column(Modifier.fillMaxWidth().heightIn(min = 266.dp).background(scrim).padding(20.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (onPhase != null) {
+                    Row(Modifier.selectableGroup().clip(CircleShape).background(white.copy(alpha = .14f))) {
+                        Phase.entries.forEach { option ->
+                            val selected = option == phase
+                            Box(Modifier.clip(CircleShape).background(if (selected) white else androidx.compose.ui.graphics.Color.Transparent)
+                                .selectable(selected, role = Role.Tab) { onPhase(option) }
+                                .heightIn(min = 48.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+                                Text(option.label, color = if (selected) Ink else white, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            }
                         }
                     }
+                } else {
+                    Box(Modifier.weight(1f).heightIn(min = 48.dp), contentAlignment = Alignment.CenterStart) {
+                        val task = active?.subject?.takeIf { it.isNotBlank() && phase == Phase.FOCUS }
+                        Text(task ?: if (mode == TimerMode.TIMER) phase.label else mode.label,
+                            color = white, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
                 }
+                if (onPhase != null) Spacer(Modifier.weight(1f))
+                SessionOrbit(
+                    turns = when {
+                        savedSession -> 1f
+                        stopwatch && active != null -> display.toFloat() / MINUTE
+                        else -> elapsed
+                    },
+                    stopwatch = stopwatch && !savedSession,
+                    running = active?.running == true,
+                    celebrate = savedSession,
+                    completionTime = resultTime,
+                    modifier = Modifier.size(48.dp)
+                )
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(12.dp))
             Column(Modifier.then(if (onEdit != null) Modifier.clickable(onClickLabel = "Edit duration", onClick = onEdit) else Modifier)) {
                 Text(digits, color = white, fontSize = if (digits.length > 5) 44.sp else 60.sp,
                     lineHeight = 66.sp, letterSpacing = (-2).sp, fontWeight = FontWeight.SemiBold,
                     style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"))
                 Text(when {
-                    result >= 0 -> if (resultKind == FocusResult.BREAK) "Break complete" else "$result study minutes saved"
+                    result >= 0 -> when {
+                        resultKind == FocusResult.BREAK -> "Break complete"
+                        result == 1 -> "1 study minute saved"
+                        else -> "$result study minutes saved"
+                    }
                     active?.running == false -> "Session paused"
                     stopwatch -> "Elapsed time"
                     mode == TimerMode.POMODORO -> "$rounds rounds · $restMinutes min breaks"
@@ -354,21 +384,49 @@ private fun SessionPoster(
                     else -> "Time remaining"
                 }, color = white, fontSize = 14.sp)
             }
-            if (onStart != null) {
-                Spacer(Modifier.height(28.dp))
-                Button(onClick = onStart, shape = CircleShape, modifier = Modifier.heightIn(min = 48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFFFBCAC), contentColor = Ink),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)) {
-                    androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_play), null, Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(when {
-                        stopwatch -> "Start stopwatch"
-                        mode == TimerMode.POMODORO -> "Start Pomodoro"
-                        phase == Phase.BREAK -> "Start break"
-                        else -> "Start focusing"
-                    }, fontWeight = FontWeight.Bold)
+            val progressWidth = Modifier.fillMaxWidth(.56f).height(4.dp).clip(CircleShape)
+            Spacer(Modifier.height(12.dp))
+            if (!stopwatch && result < 0) {
+                LinearProgressIndicator(progress = { elapsed }, modifier = progressWidth,
+                    color = androidx.compose.ui.graphics.Color(0xFFFFBCAC), trackColor = white.copy(alpha = .26f),
+                    drawStopIndicator = {})
+            } else {
+                Spacer(Modifier.height(4.dp))
+            }
+            val action = onStart ?: onPause.takeIf { active != null && !active.strict }
+            if (action != null) {
+                val label = when {
+                    active?.running == true -> "Pause"
+                    active != null -> "Resume"
+                    stopwatch -> "Start stopwatch"
+                    mode == TimerMode.POMODORO -> "Start Pomodoro"
+                    phase == Phase.BREAK -> "Start break"
+                    else -> "Start focusing"
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = action, shape = CircleShape, modifier = Modifier.widthIn(min = 132.dp).heightIn(min = 48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFFFBCAC), contentColor = Ink),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                        Icon(androidx.compose.ui.res.painterResource(
+                            if (active?.running == true) R.drawable.ic_rail_pause else R.drawable.ic_play
+                        ), null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Crossfade(label, animationSpec = tween(130), label = "Session action") {
+                            Text(it, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (active != null) {
+                        FilledTonalButton(onClick = onEnd, modifier = Modifier.heightIn(min = 48.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = androidx.compose.ui.graphics.Color(0xFF383254), contentColor = white
+                            ), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
+                            Text(if (mode == TimerMode.POMODORO) "End" else "Finish")
+                        }
+                    }
                 }
             }
+
         }
     }
 }

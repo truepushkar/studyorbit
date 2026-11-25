@@ -2,21 +2,53 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     style="@style/Widget.StudyOrbit.Card"
+    android:background="@drawable/widget_planner_background"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <TextView
-        style="@style/Widget.StudyOrbit.Heading"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/widget_planner_title" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="7dp"
+            android:padding="3dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_widget_planner"
+            android:tint="@color/widget_planner_accent" />
+
+        <TextView
+            style="@style/Widget.StudyOrbit.Heading"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/widget_planner_accent"
+            android:text="@string/widget_planner_heading" />
+
+        <ImageView
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:importantForAccessibility="no"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_rail_expand"
+            android:tint="@color/widget_planner_accent" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
     <TextView
         android:id="@+id/widget_value"
         style="@style/Widget.StudyOrbit.Value"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="6dp"
         android:text="@string/widget_planner_empty" />
 
     <TextView

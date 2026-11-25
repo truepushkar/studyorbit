@@ -1,6 +1,9 @@
 package dev.stillpoint.focus
 
+import android.util.LruCache
 import android.view.WindowManager
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -16,7 +19,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.heading
@@ -204,15 +211,20 @@ internal val TimerTheme.pageColor: Color
 
 @Composable
 internal fun AtlasPanel(
-    artwork: Int, modifier: Modifier = Modifier, artAlignment: Alignment = Alignment.Center,
+    @DrawableRes artwork: Int, modifier: Modifier = Modifier, artAlignment: Alignment = Alignment.Center,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val resources = LocalContext.current.resources
+    val illustration = remember(artwork, resources) {
+        atlasIllustrations.get(artwork) ?: ImageBitmap.imageResource(resources, artwork)
+            .also { atlasIllustrations.put(artwork, it) }
+    }
     Box(modifier.fillMaxWidth().clip(CardShape)) {
-        androidx.compose.foundation.Image(
-            painter = androidx.compose.ui.res.painterResource(artwork), contentDescription = null,
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = artAlignment,
-            modifier = Modifier.matchParentSize()
-        )
+        Image(illustration, contentDescription = null, contentScale = ContentScale.Crop,
+            alignment = artAlignment, modifier = Modifier.matchParentSize())
         content()
     }
 }
+
+// The four nodpi illustrations are density-independent. Retain at most two between tab visits.
+private val atlasIllustrations = LruCache<Int, ImageBitmap>(2)
