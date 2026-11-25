@@ -3,6 +3,11 @@ package dev.stillpoint.focus
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -26,7 +31,7 @@ internal fun nextMidnight() = LocalDate.now().plusDays(1).atStartOfDay(ZoneId.sy
 
 @Composable
 internal fun ContentRulesDialog(
-    original: ContentRules, strict: Boolean, onDismiss: () -> Unit, onSave: (ContentRules) -> Unit
+    original: ContentRules, strict: Boolean, enabled: Boolean, onDismiss: () -> Unit, onSave: (ContentRules) -> Unit
 ) {
     val editable = !original.isLocked && !strict
     var blocked by rememberSaveable { mutableStateOf(original.blockedHosts.sorted().joinToString("\n")) }
@@ -41,10 +46,15 @@ internal fun ContentRulesDialog(
     val invalidBlocked = blockedList.any { websiteHost(it) == null }
     val invalidAllowed = allowedList.any { websiteHost(it) == null }
     val channelList = channels.entries().map(::channelKey).filter { it.isNotBlank() }.toSet()
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Web and YouTube rules") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (!editable) Text("These rules are locked.", color = Purple, fontWeight = FontWeight.Bold)
+    OrbitFullScreen(onDismiss) {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = orbitTopPadding(), bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                BlockSubpageTitle("Web & YouTube rules", onDismiss)
+                Text(when {
+                    !editable -> "These rules are locked."
+                    enabled -> "Accessibility is on · rules are enforced"
+                    else -> "Needs Accessibility · rules not enforced"
+                }, color = Purple, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 OutlinedTextField(blocked, { blocked = it.take(4000) }, enabled = editable, isError = invalidBlocked,
                     label = { Text("Always blocked sites") }, placeholder = { Text("example.com") }, maxLines = 4,
                     supportingText = { Text(if (invalidBlocked) "Enter valid domains or URLs." else "One domain or URL per line.") })
@@ -63,51 +73,40 @@ internal fun ContentRulesDialog(
                 ToggleRule("Lock rules until midnight", "Changes are available again after the daily reset.", lock, editable) { lock = it }
                 Text("Browser and video detection depends on what each app exposes to Android Accessibility.",
                     color = Muted, fontSize = 12.sp)
+                OrbitButton("Save rules", {
+                    onSave(ContentRules(
+                        blockedList.mapNotNull(::websiteHost).toSet(), allowedList.mapNotNull(::websiteHost).toSet(),
+                        adult, browser, youtube, channelList, if (lock) nextMidnight() else 0
+                    ))
+                }, Modifier.fillMaxWidth(), enabled = editable && !invalidBlocked && !invalidAllowed &&
+                    (!browser || allowedList.isNotEmpty()) && (!youtube || channelList.isNotEmpty()))
+                OrbitButton(if (editable) "Cancel" else "Close", onDismiss, Modifier.fillMaxWidth(), primary = false, rounded = false)
             }
-        },
-        confirmButton = {
-            TextButton(enabled = editable && !invalidBlocked && !invalidAllowed && (!browser || allowedList.isNotEmpty()) &&
-                (!youtube || channelList.isNotEmpty()), onClick = {
-                onSave(ContentRules(
-                    blockedList.mapNotNull(::websiteHost).toSet(), allowedList.mapNotNull(::websiteHost).toSet(),
-                    adult, browser, youtube, channelList, if (lock) nextMidnight() else 0
-                ))
-            }) { Text("Save rules") }
-        }, dismissButton = { TextButton(onClick = onDismiss) { Text(if (editable) "Cancel" else "Close") } })
+    }
 }
 
 private fun String.entries() = lineSequence().map(String::trim).filter(String::isNotEmpty).toList()
 
 @Composable
 internal fun StudyShortcuts(rules: ContentRules) {
-    if ((!rules.youtubeStudy || rules.channels.isEmpty()) && (!rules.browserStudy || rules.allowedHosts.isEmpty())) return
-    var open by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
-    Panel {
-        Text("Study shortcuts", color = Ink, fontWeight = FontWeight.Bold)
-        Text("Open a website or YouTube channel from your study list.", color = Muted, fontSize = 13.sp)
-        TextButton(onClick = { open = true }) { Text("Open study list") }
+    fun launch(url: String) {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+            .onFailure { android.widget.Toast.makeText(context, "No app can open this link.", android.widget.Toast.LENGTH_SHORT).show() }
     }
-    if (open) AlertDialog(onDismissRequest = { open = false }, title = { Text("Study list") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                fun launch(url: String) {
-                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-                        .onFailure { android.widget.Toast.makeText(context, "No app can open this link.", android.widget.Toast.LENGTH_SHORT).show() }
-                }
-                if (rules.browserStudy) rules.allowedHosts.sorted().forEach { host ->
-                    TextButton(onClick = { launch("https://$host") }) { Text(host) }
-                }
-                if (rules.youtubeStudy) rules.channels.sorted().forEach { name ->
-                    TextButton(onClick = {
-                        val url = if (name.matches(Regex("[a-zA-Z0-9_.-]+"))) "https://www.youtube.com/@${Uri.encode(name)}"
-                            else "https://www.youtube.com/results?search_query=${Uri.encode(name)}"
-                        launch(url)
-                    }) { Text("YouTube · $name") }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = { open = false }) { Text("Close") } })
+    if (rules.allowedHosts.isEmpty() && rules.channels.isEmpty()) {
+        Text("Add sites and channels under Block → Advanced filters.", color = Muted, fontSize = 13.sp)
+    }
+    rules.allowedHosts.sorted().forEach { host ->
+        OrbitButton("$host  ↗", { launch("https://$host") }, Modifier.fillMaxWidth(), primary = false, rounded = false, container = OrbitSurface)
+    }
+    rules.channels.sorted().forEach { name ->
+        OrbitButton("$name  ↗", {
+            val url = if (name.matches(Regex("[a-zA-Z0-9_.-]+"))) "https://www.youtube.com/@${Uri.encode(name)}"
+                else "https://www.youtube.com/results?search_query=${Uri.encode(name)}"
+            launch(url)
+        }, Modifier.fillMaxWidth(), primary = false, rounded = false, container = OrbitSurface)
+    }
 }
 
 @Composable
@@ -117,7 +116,7 @@ internal fun ScreenTimePanel(
     var weekly by rememberSaveable { mutableStateOf(false) }
     var report by remember { mutableStateOf<Map<String, Long>?>(null) }
     var loaded by remember { mutableStateOf(false) }
-    var names by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var names by remember(access) { mutableStateOf<Map<String, String>?>(null) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(access) {
         if (access) names = withContext(Dispatchers.IO) { apps.installed().associate { it.id to it.name } }
@@ -125,42 +124,63 @@ internal fun ScreenTimePanel(
     LaunchedEffect(access, today, weekly, names, lifecycle) {
         loaded = false
         report = null
-        if (access && names.isNotEmpty()) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+        val appNames = names
+        if (access && appNames != null) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
                 val first = if (weekly) today.minusDays(6) else today
-                report = withContext(Dispatchers.IO) { apps.usageSince(first)?.filterKeys { it in names } }
+                report = withContext(Dispatchers.IO) { apps.usageSince(first)?.filterKeys { it in appNames } }
                 loaded = true
                 delay(MINUTE)
             }
         }
     }
     Panel {
-        Text("Screen time", color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text("Device screen time", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        Text("Not counted as study time", color = Muted, fontSize = 11.sp)
+        Row(Modifier.fillMaxWidth().padding(top = 9.dp, bottom = 5.dp).clip(FieldShape).background(Night)) {
+            listOf("Today", "Last 7 days").forEachIndexed { index, label ->
+                val selected = weekly == (index == 1)
+                Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(FieldShape).background(if (selected) Lavender else Night)
+                    .selectable(selected, enabled = access) { weekly = index == 1 }, contentAlignment = Alignment.Center) {
+                    Text(label, color = Purple, fontSize = 12.sp)
+                }
+            }
+        }
+        val entries = report.orEmpty()
         when {
             !access -> {
-                Text("Allow Usage Access to see time in your apps and compare your categories.", color = Muted, fontSize = 13.sp)
-                TextButton(onClick = onAccess) { Text("Allow Usage Access") }
+                Text("Understand where your day goes.", Modifier.padding(vertical = 7.dp), color = Muted, fontSize = 13.sp)
+                OrbitButton("Allow Usage Access", onAccess, Modifier.fillMaxWidth(), primary = false)
+            }
+            entries.isEmpty() -> {
+                Text(if (!loaded) "Reading app usage…" else "No device usage recorded.",
+                    Modifier.padding(vertical = 12.dp), color = Muted, fontSize = 13.sp)
             }
             else -> {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = !weekly, onClick = { weekly = false }, label = { Text("Today") })
-                    FilterChip(selected = weekly, onClick = { weekly = true }, label = { Text("Last 7 days") })
+                val sum = entries.values.sum()
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(usageLabel(sum), Modifier.weight(1f), color = Ink, fontSize = 28.sp, lineHeight = 34.sp,
+                        fontWeight = FontWeight.SemiBold)
+                    Text(if (weekly) "Avg. ${usageLabel(sum / 7)} / day" else "Total device usage",
+                        Modifier.weight(1f), color = Muted, fontSize = 11.sp)
                 }
-                val entries = report.orEmpty()
-                if (entries.isEmpty()) {
-                    Text(if (!loaded) "Reading app usage…" else "No app usage recorded for this period.", color = Muted, fontSize = 13.sp)
-                } else {
-                    Text("${usageLabel(entries.values.sum())} total", color = Purple, fontWeight = FontWeight.Bold)
-                    val grouped = entries.entries.groupBy { store.rule(it.key).tag }
-                    AppTag.entries.forEach { tag ->
-                        val time = grouped[tag].orEmpty().sumOf { it.value }
-                        UsageRow(tag.label, time)
+                val grouped = remember(entries, store) { entries.entries.groupBy { store.rule(it.key).tag } }
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    listOf(AppTag.PRODUCTIVE, AppTag.DISTRACTING, AppTag.UNTAGGED).forEach { tag ->
+                        Column(Modifier.weight(1f)) {
+                            Text("● ${tag.label}", color = when (tag) {
+                                AppTag.PRODUCTIVE -> Forest
+                                AppTag.DISTRACTING -> androidx.compose.ui.graphics.Color(0xFFF6AD76)
+                                AppTag.UNTAGGED -> Muted
+                            }, fontSize = 11.sp)
+                            Text(usageLabel(grouped[tag].orEmpty().sumOf { it.value }), color = Ink, fontSize = 13.sp)
+                        }
                     }
-                    HorizontalDivider(Modifier.padding(vertical = 7.dp), color = Line)
-                    Text("Most used apps", color = Ink, fontWeight = FontWeight.Bold)
-                    entries.entries.sortedByDescending { it.value }.take(8).forEach { (pkg, time) ->
-                        UsageRow(names[pkg] ?: pkg, time)
-                    }
+                }
+                HorizontalDivider(Modifier.padding(vertical = 9.dp), color = Line)
+                Text("Most used", color = Muted, fontSize = 11.sp)
+                entries.entries.sortedByDescending { it.value }.take(4).forEach { (pkg, time) ->
+                    UsageRow(names?.get(pkg) ?: pkg, time)
                 }
             }
         }

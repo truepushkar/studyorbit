@@ -1,8 +1,10 @@
 package dev.stillpoint.focus
 
 import android.os.SystemClock
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import android.util.LruCache
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -21,20 +25,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,20 +49,37 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun BlockPage(
     device: DeviceApps, store: FocusStore, blockAccess: Boolean, usageAccess: Boolean,
-    locked: Boolean, today: LocalDate, resumes: Int, onBlockAccess: () -> Unit,
-    onUsageAccess: () -> Unit, adminActive: Boolean, onAdmin: () -> Unit
+    locked: Boolean, today: LocalDate, resumes: Int, appProtection: Boolean, protectionReady: Boolean,
+    onSubpage: (Boolean) -> Unit, onAppProtection: () -> Unit,
+    onBlockAccess: () -> Unit,
+    adminActive: Boolean, onAdmin: () -> Unit
 ) {
     var catalog by remember(device, resumes) { mutableStateOf<List<DeviceApp>?>(null) }
     var usage by remember(today, usageAccess) { mutableStateOf<Map<String, Long>?>(null) }
     var usageReadAt by remember(today, usageAccess) { mutableLongStateOf(-MINUTE) }
     var query by rememberSaveable { mutableStateOf("") }
-    var browseAll by rememberSaveable { mutableStateOf(false) }
+    var screen by rememberSaveable { mutableStateOf("rules") }
+    var searchOnOpen by remember { mutableStateOf(false) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var contentDialog by rememberSaveable { mutableStateOf(false) }
     var version by remember { mutableIntStateOf(0) }
     var appRulesVersion by remember { mutableIntStateOf(0) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val listState = rememberLazyListState()
+    val rulesList = rememberLazyListState()
+    val catalogList = rememberLazyListState()
+    val advancedList = rememberLazyListState()
+    val listState = when (screen) {
+        "catalog" -> catalogList
+        "advanced" -> advancedList
+        else -> rulesList
+    }
+    fun closePage() {
+        screen = "rules"
+        query = ""
+        onSubpage(false)
+    }
+    SideEffect { onSubpage(screen != "rules") }
+    BackHandler(screen != "rules", ::closePage)
     val icons = remember(resumes) { LruCache<String, ImageBitmap>(64) }
     val showingAppRows by remember(listState) {
         derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.contentType == APP_RULE_ROW } }
@@ -89,14 +102,14 @@ internal fun BlockPage(
         configured.orEmpty().filter { it.id in rules }
     }
     val searchTerm = query.trim()
-    val showCatalog = browseAll || searchTerm.isNotEmpty()
+    val showCatalog = screen == "catalog"
     LaunchedEffect(device, resumes, showCatalog) {
         if (showCatalog && catalog == null) catalog = withContext(Dispatchers.IO) { device.installed() }
     }
     val inventory = catalog
     val matches = remember(inventory, searchTerm, rules.keys) { mutableStateOf<List<DeviceApp>?>(null) }
-    LaunchedEffect(inventory, searchTerm, rules.keys) {
-        if (inventory == null) return@LaunchedEffect
+    LaunchedEffect(inventory, searchTerm, rules.keys, showCatalog) {
+        if (!showCatalog || inventory == null) return@LaunchedEffect
         if (searchTerm.isNotEmpty()) delay(120)
         matches.value = withContext(Dispatchers.Default) {
             val results = if (searchTerm.isBlank()) inventory else inventory.filter {
@@ -109,195 +122,281 @@ internal fun BlockPage(
     val content = remember(version, today, locked) { readContentRules(store.prefs) }
     val modes = remember(version) { videoTargets.associateWith { it.mode(store.prefs) } }
     val coverWindows = remember(version) { store.prefs.getBoolean("cover_small_windows", true) }
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 7.dp, bottom = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            PageTitle("DISTRACTION CONTROLS", "Protect your focus.", "Choose what can interrupt your study time.")
-        }
-        item {
-            Column(Modifier.fillMaxWidth().clip(CardShape).background(Lavender).padding(15.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconTile(Glyph.SHIELD, Purple, White)
-                    Column(Modifier.weight(1f).padding(start = 11.dp)) {
-                        Text(if (blockAccess) "Blocking is enabled" else "Enable app blocking",
-                            color = Ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text(if (blockAccess) "Your rules apply automatically." else "Grant Android Accessibility access to enforce rules.",
-                            color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+    Column(Modifier.fillMaxSize()) {
+        if (showCatalog) {
+            Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = orbitTopPadding())) {
+                BlockSubpageTitle("Choose apps", ::closePage)
+                Spacer(Modifier.height(15.dp))
+                val searchFocus = remember { FocusRequester() }
+                OrbitField("Search installed apps", query, { query = it }, Modifier.fillMaxWidth().focusRequester(searchFocus),
+                    placeholder = "App name")
+                LaunchedEffect(searchOnOpen) {
+                    if (searchOnOpen) {
+                        searchFocus.requestFocus()
+                        searchOnOpen = false
                     }
-                    if (!blockAccess) TextButton(onClick = onBlockAccess) { Text("Enable") }
-                    else Mark(Glyph.CHECK, Forest, 20)
                 }
-                if (!usageAccess) {
-                    HorizontalDivider(Modifier.padding(vertical = 9.dp), color = White.copy(alpha = 0.65f))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconTile(Glyph.TIMER, Purple, White)
-                        Column(Modifier.weight(1f).padding(start = 11.dp)) {
-                            Text("Daily limit access", color = Ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Text("Grant Usage Access to count time in your apps.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                Spacer(Modifier.height(23.dp))
+                Text("Eligible apps" + (apps?.let { " · ${it.size} results" } ?: ""),
+                    color = Muted, fontSize = 13.sp)
+            }
+        }
+        LazyColumn(
+            state = listState, modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = when (screen) { "rules" -> 6.dp; "catalog" -> 10.dp; else -> orbitTopPadding() },
+            bottom = if (showCatalog) 4.dp else 18.dp),
+            verticalArrangement = Arrangement.spacedBy(if (screen == "catalog") 14.dp else 9.dp)
+        ) {
+            if (screen == "advanced") {
+                item {
+                    BlockSubpageTitle("Advanced filters", ::closePage)
+                    ProtectionStatus(
+                        if (blockAccess) "Accessibility enabled" else "Accessibility required",
+                        active = blockAccess
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text("Filters short videos and supported sites using the content visible on screen.",
+                        color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                    if (!blockAccess) {
+                        Spacer(Modifier.height(21.dp))
+                        OrbitButton("Set up Accessibility", onBlockAccess, Modifier.fillMaxWidth(), enabled = !locked)
+                    }
+                    OrbitHeading("Short-video filters", Modifier.padding(top = 20.dp, bottom = 3.dp), 19)
+                }
+                items(videoTargets, key = { "video:${it.pkg}" }) { target ->
+                    VideoRule(target.label, modes.getValue(target), !locked) { mode ->
+                        if (!store.strictWindow()) {
+                            store.prefs.edit().putInt(target.key, mode).apply()
+                            version++
                         }
-                        TextButton(onClick = onUsageAccess) { Text("Allow") }
+                    }
+                }
+                item {
+                    Text("May vary with the version of each app.", Modifier.padding(vertical = 9.dp),
+                        color = Muted, fontSize = 11.sp)
+                    OrbitButton("Open web and YouTube rules", { contentDialog = true }, Modifier.fillMaxWidth(),
+                        primary = false, rounded = false)
+                    Spacer(Modifier.height(8.dp))
+                    ToggleRule("Cover split-screen & floating apps", "", coverWindows, !locked) { enabled ->
+                        if (!store.strictWindow()) {
+                            store.prefs.edit().putBoolean("cover_small_windows", enabled).apply()
+                            version++
+                        }
+                    }
+                    TextButton(onClick = onAdmin, enabled = !locked, contentPadding = PaddingValues(0.dp)) {
+                        Text(if (adminActive) "Manage uninstall protection  ›" else "Set up uninstall protection  ›")
+                    }
+                    Text("Optional Android device admin", color = Muted, fontSize = 11.sp)
+                }
+            } else {
+                if (!showCatalog) {
+                    item {
+                        Column(Modifier.fillMaxWidth().clip(CardShape).background(Lavender)
+                            .border(1.dp, Line, CardShape).padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp)) {
+                            OrbitHeading("Whole-app protection", size = 19)
+                            val enabled = appProtection && protectionReady
+                            ProtectionStatus(when {
+                                enabled -> "Protection on"
+                                protectionReady -> "Ready to turn on"
+                                else -> "Setup needed"
+                            }, enabled, Modifier.padding(top = 5.dp))
+                            Text("Block selected apps during focus or when they reach a daily limit.",
+                                Modifier.padding(top = 10.dp, bottom = 10.dp), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                            OrbitButton(when {
+                                enabled -> "Manage protection"
+                                protectionReady -> "Turn on protection"
+                                else -> "Set up protection"
+                            }, onAppProtection, Modifier.fillMaxWidth(), enabled = !locked)
+                        }
+                        if (locked) Text("Strict session active · rules are read-only",
+                            Modifier.padding(top = 12.dp), color = Purple, fontSize = 13.sp)
+                    }
+                    item {
+                        OrbitHeading("App rules", Modifier.padding(top = 15.dp), 19)
+                        Text(if (configuredApps.isEmpty()) "No rules yet" else "${configuredApps.size} configured",
+                            Modifier.padding(top = 3.dp), color = Muted, fontSize = 13.sp)
+                    }
+                }
+                if (apps.isNullOrEmpty()) item {
+                    if (!showCatalog && apps != null) {
+                        Panel {
+                            Text("Choose apps to block or limit", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            Text("You can set up rules before turning on protection.",
+                                Modifier.padding(top = 3.dp), color = Muted, fontSize = 12.sp)
+                        }
+                    } else Text(
+                        when {
+                            apps == null && showCatalog -> "Finding installed apps…"
+                            apps == null -> "Loading app rules…"
+                            searchTerm.isNotEmpty() -> "No matching apps."
+                            else -> "No eligible apps found."
+                        }, color = Muted
+                    )
+                }
+                items(apps.orEmpty(), key = { "app:${it.id}" }, contentType = { APP_RULE_ROW }) { app ->
+                    val rule = rules[app.id] ?: AppRule()
+                    val used = usage?.let { (it[app.id] ?: 0L) / MINUTE }
+                    val description = buildList {
+                        if (rule.focusOnly) add("Blocked in focus")
+                        if (rule.dailyMinutes > 0) add("${rule.dailyMinutes} min/day")
+                        if (rule.tag != AppTag.UNTAGGED) add(rule.tag.label)
+                        if (rule.isLocked) add("Locked until midnight")
+                        if (used != null && (used > 0 || rule.dailyMinutes > 0)) add("$used min used")
+                    }.joinToString(" · ").ifEmpty { "Not configured" }
+                    val icon by produceState(icons.get(app.id), device, app, icons) {
+                        value = icons.get(app.id) ?: withContext(Dispatchers.IO) {
+                            device.loadIcon(app)?.toBitmap(88, 88)?.asImageBitmap()?.also { icons.put(app.id, it) }
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(19.dp)).background(OrbitSurface)
+                            .border(1.dp, Line, RoundedCornerShape(19.dp))
+                            .clickable(onClickLabel = "Open rules for ${app.name}") { editing = app.id }
+                            .heightIn(min = 76.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)).background(Lavender)) {
+                            icon?.let { Image(it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
+                        }
+                        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                            Text(app.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(description, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                        }
+                        Text("›", color = Purple, fontSize = 23.sp)
+                    }
+                }
+                if (!showCatalog) {
+                    item {
+                        Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OrbitButton("Search installed apps", { searchOnOpen = true; screen = "catalog"; onSubpage(true) }, Modifier.weight(1.75f), primary = false)
+                            OrbitButton("Browse all apps", { screen = "catalog"; onSubpage(true) }, Modifier.weight(1f), primary = false)
+                        }
+                    }
+                    item {
+                        OrbitHeading("Advanced filters", Modifier.padding(top = 22.dp), 19)
+                        ProtectionStatus(
+                            if (blockAccess) "Accessibility enabled" else "Optional · Requires Accessibility",
+                            active = blockAccess, modifier = Modifier.padding(top = 5.dp, bottom = 11.dp)
+                        )
+                        Surface(
+                            onClick = { screen = "advanced"; onSubpage(true) }, modifier = Modifier.fillMaxWidth(),
+                            color = OrbitSurface, shape = CardShape, border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+                        ) {
+                            Row(Modifier.padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Short videos, websites & YouTube", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    Text("Reels, Shorts, Spotlight and study rules", color = Muted, fontSize = 12.sp)
+                                }
+                                Text("›", Modifier.padding(start = 12.dp), color = Purple, fontSize = 23.sp)
+                            }
+                        }
+                        Text(
+                            if (blockAccess && !appProtection) "Accessibility can still enforce your app rules."
+                            else "Whole-app protection can run without Accessibility.",
+                            Modifier.padding(top = 15.dp), color = Muted, fontSize = 12.sp, lineHeight = 16.sp
+                        )
                     }
                 }
             }
         }
-        if (locked) item {
-            Panel { Text("Strict Mode keeps your blocking settings fixed until this session ends.", color = Purple) }
-        }
-        item {
-            Panel {
-                Text("Web and YouTube study rules", color = Ink, fontWeight = FontWeight.Bold)
-                Text("Block domains or restrict browsers and YouTube to your study list.",
-                    color = Muted, fontSize = 13.sp)
-                TextButton(onClick = { contentDialog = true }) { Text("Open web and YouTube rules") }
-            }
-        }
-        items(videoTargets, key = { "video:${it.pkg}" }) { target ->
-            VideoRule(target.label, "Skip the short-video viewer.", if (target.pkg == YOUTUBE) Glyph.PLAY else Glyph.REELS,
-                modes.getValue(target), !locked) { mode ->
-                if (!store.strictWindow()) {
-                    store.prefs.edit().putInt(target.key, mode).apply()
-                    version++
-                }
-            }
-        }
-        item {
-            Row(Modifier.padding(top = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("App rules", Modifier.weight(1f).semantics { heading() }, color = Ink, fontFamily = FontFamily.Serif, fontSize = 25.sp)
-                Text("${configuredApps.size} configured", color = Muted, fontSize = 12.sp)
-            }
-            OutlinedTextField(
-                query, { query = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                singleLine = true, label = { Text("Search installed apps") },
-                leadingIcon = { Mark(Glyph.SEARCH, Muted, 18) }, shape = RoundedCornerShape(16.dp)
-            )
-            TextButton(onClick = {
-                query = ""
-                browseAll = !showCatalog
-            }) {
-                Text(if (showCatalog) "Show configured apps" else "Browse all apps")
-            }
-        }
-        if (apps.isNullOrEmpty()) item {
-            Text(
-                when {
-                    apps == null && showCatalog -> "Finding installed apps…"
-                    apps == null -> "Loading app rules…"
-                    searchTerm.isNotEmpty() -> "No matching apps."
-                    browseAll -> "No eligible apps found."
-                    else -> "Search for an app to add a rule."
-                },
-                color = Muted, modifier = Modifier.padding(horizontal = 6.dp)
-            )
-        }
-        items(apps.orEmpty(), key = { "app:${it.id}" }, contentType = { APP_RULE_ROW }) { app ->
-            val rule = rules[app.id] ?: AppRule()
-            val used = usage?.let { (it[app.id] ?: 0L) / MINUTE }
-            val description = buildList {
-                if (rule.focusOnly) add("Blocked in focus")
-                if (rule.dailyMinutes > 0) add("${rule.dailyMinutes} min/day")
-                if (rule.tag != AppTag.UNTAGGED) add(rule.tag.label)
-                if (rule.isLocked) add("Locked until midnight")
-                if (used != null && (used > 0 || rule.dailyMinutes > 0)) add("$used min used")
-            }.joinToString(" · ").ifEmpty { "Add a block or daily limit" }
-            val icon by produceState(icons.get(app.id), device, app, icons) {
-                value = icons.get(app.id) ?: withContext(Dispatchers.IO) {
-                    device.loadIcon(app)?.toBitmap(88, 88)?.asImageBitmap()?.also { icons.put(app.id, it) }
-                }
-            }
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(19.dp)).background(White)
-                    .border(1.dp, Line, RoundedCornerShape(19.dp))
-                    .clickable(enabled = !locked, onClickLabel = "Edit rules for ${app.name}") { editing = app.id }
-                    .padding(horizontal = 13.dp, vertical = 11.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(Lavender)) {
-                    icon?.let { Image(it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
-                }
-                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                    Text(app.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(description, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
-                }
-                Mark(Glyph.ARROW, Purple, 19)
-            }
-        }
-        item {
-            Panel {
-                ToggleRule("Cover split-screen and floating apps",
-                    "Apply your blocking rules to secondary windows Android makes visible.",
-                    coverWindows, !locked) { enabled ->
-                    if (!store.strictWindow()) {
-                        store.prefs.edit().putBoolean("cover_small_windows", enabled).apply()
-                        version++
-                    }
-                }
-                HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Line)
-                Text("Uninstall protection", color = Ink, fontWeight = FontWeight.Bold)
-                Text("Android requires you to turn off device admin before uninstalling StudyOrbit. You can remove access in Android Settings.",
-                    color = Muted, fontSize = 13.sp)
-                TextButton(enabled = !locked, onClick = onAdmin) {
-                    Text(if (adminActive) "Turn off protection" else "Set up protection")
-                }
-            }
+        if (showCatalog) {
+            val keyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+            val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+            val bottom = if (keyboardVisible) 8.dp else (screenHeight - 620.dp).coerceIn(8.dp, 112.dp)
+            OrbitButton("Show configured apps", ::closePage,
+                Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 10.dp, bottom = bottom),
+                primary = false, rounded = false)
         }
     }
     val app = editing?.let { id ->
         configuredApps.firstOrNull { it.id == id } ?: inventory?.firstOrNull { it.id == id }
     }
-    if (app != null) RuleDialog(app, rules[app.id] ?: AppRule(), locked, { editing = null }) {
+    if (app != null) RuleDialog(app, rules[app.id] ?: AppRule(), locked, usage?.get(app.id), { editing = null }) {
         if (store.saveRule(app.id, it)) appRulesVersion++
         editing = null
     }
-    if (contentDialog) ContentRulesDialog(content, locked, onDismiss = { contentDialog = false }) {
+    if (contentDialog) ContentRulesDialog(content, locked, blockAccess, onDismiss = { contentDialog = false }) {
         if (store.saveContentRules(it)) version++
         contentDialog = false
+    }
+}
+
+@Composable
+private fun ProtectionStatus(label: String, active: Boolean, modifier: Modifier = Modifier) {
+    val color = if (active) Forest else Purple
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(6.dp).background(color, CircleShape))
+        Text(label, color = color, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
 private const val APP_RULE_ROW = "app-rule"
 
 @Composable
-private fun RuleDialog(app: DeviceApp, original: AppRule, locked: Boolean, onDismiss: () -> Unit, onSave: (AppRule) -> Unit) {
+internal fun BlockSubpageTitle(title: String, onClose: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        OrbitHeading(title, Modifier.weight(1f))
+        IconButton(onClick = onClose) {
+            Text("×", Modifier.semantics { contentDescription = "Close" }, color = Purple, fontSize = 25.sp)
+        }
+    }
+}
+
+@Composable
+private fun RuleDialog(
+    app: DeviceApp, original: AppRule, locked: Boolean, usage: Long?,
+    onDismiss: () -> Unit, onSave: (AppRule) -> Unit
+) {
     var focusOnly by rememberSaveable(app.id) { mutableStateOf(original.focusOnly) }
-    var dailyLimit by rememberSaveable(app.id) { mutableStateOf(original.dailyMinutes > 0) }
     var minutes by rememberSaveable(app.id) {
-        mutableStateOf(original.dailyMinutes.takeIf { it > 0 }?.toString() ?: "30")
+        mutableStateOf(original.dailyMinutes.takeIf { it > 0 }?.toString().orEmpty())
     }
     val limit = minutes.toIntOrNull() ?: 0
     var tag by rememberSaveable(app.id) { mutableStateOf(original.tag) }
     var lock by rememberSaveable(app.id) { mutableStateOf(original.isLocked) }
     val editable = !locked && !original.isLocked
-    AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(app.name) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (!editable) Text("This rule is locked.", color = Purple, fontWeight = FontWeight.SemiBold)
-                ToggleRule("Block during focus", "Applies during active and scheduled focus.", focusOnly, editable) { focusOnly = it }
-                HorizontalDivider(color = Line)
-                ToggleRule("Daily time limit", "Resets at local midnight.", dailyLimit, editable) { dailyLimit = it }
-                if (dailyLimit && editable) NumberField(minutes, { minutes = it }, "Minutes per day", 1..720)
-                if (dailyLimit && !editable) Text("$limit minutes per day", color = Muted)
-                Text("Screen time category", color = Ink, fontWeight = FontWeight.SemiBold)
-                AppTag.entries.forEach { option ->
-                    FilterChip(selected = tag == option, enabled = editable, onClick = { tag = option },
-                        label = { Text(option.label) })
+    OrbitFullScreen(onDismiss) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = orbitTopPadding(), bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            BlockSubpageTitle(if (editable) "${app.name} rule" else "Rules are locked", onDismiss)
+            if (editable) {
+                Text(app.name, color = Purple, fontWeight = FontWeight.SemiBold)
+                Panel {
+                    ToggleRule("Block during focus", "Also applies to scheduled focus-rule windows.", focusOnly) { focusOnly = it }
                 }
-                if (dailyLimit) ToggleRule("Lock limit until midnight",
-                    "You can edit it again after the daily reset.", lock, editable) { lock = it }
+                OrbitField("Daily time limit · 1–720 minutes", minutes, { minutes = it.filter(Char::isDigit).take(3) },
+                    Modifier.fillMaxWidth(), placeholder = "No daily limit", numeric = true, suffix = "minutes",
+                    error = minutes.isNotEmpty() && limit !in 1..720)
+                Text("Resets at local midnight. Clear the field to remove the limit.", color = Muted, fontSize = 12.sp)
+                if (limit > 0) Panel {
+                    ToggleRule("Lock limit until midnight", "Read-only until tomorrow once saved.", lock) { lock = it }
+                }
+                Text("Category", color = Muted, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf(AppTag.PRODUCTIVE, AppTag.DISTRACTING, AppTag.UNTAGGED).forEach { option ->
+                        OrbitButton(option.label, { tag = option }, Modifier.weight(1f), primary = tag == option)
+                    }
+                }
+                usage?.let { Text("Used today · ${it / MINUTE} min", color = Muted, fontSize = 13.sp) }
+                OrbitButton("Save rule", {
+                    onSave(AppRule(focusOnly, limit, tag, if (limit > 0 && lock) nextMidnight() else 0L))
+                }, Modifier.fillMaxWidth(), enabled = minutes.isEmpty() || limit in 1..720)
+                OrbitButton("Cancel", onDismiss, Modifier.fillMaxWidth(), primary = false, rounded = false)
+            } else {
+                Panel {
+                    OrbitHeading(if (original.isLocked) "Locked until midnight" else "Strict session active", size = 18)
+                    Text(if (original.isLocked) "This rule unlocks at midnight, local time." else "Rules are read-only until your strict session finishes.",
+                        Modifier.padding(top = 8.dp), color = Muted)
+                }
+                OrbitHeading(app.name, size = 19)
+                Text("Block during focus · ${if (original.focusOnly) "On" else "Off"}", color = Muted)
+                Text("Daily limit · ${if (limit > 0) "$limit minutes" else "Off"}", color = Muted)
+                Text("Category · ${original.tag.label}", color = Muted)
+                OrbitButton("Back to Block", onDismiss, Modifier.fillMaxWidth())
             }
-        },
-        confirmButton = {
-            TextButton(enabled = editable && (!dailyLimit || limit in 1..720), onClick = {
-                onSave(AppRule(focusOnly, if (dailyLimit) limit else 0, tag, if (dailyLimit && lock) nextMidnight() else 0))
-            }) { Text("Save rule") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
+        }
+    }
 }
 
 @Composable
@@ -305,17 +404,19 @@ internal fun ToggleRule(title: String, details: String, enabled: Boolean, editab
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
             Text(title, color = Ink, fontWeight = FontWeight.SemiBold)
-            Text(details, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+            if (details.isNotEmpty()) Text(details, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
         }
         Switch(checked = enabled, enabled = editable, onCheckedChange = onChange,
-            modifier = Modifier.semantics { contentDescription = title })
+            modifier = Modifier.semantics { contentDescription = title },
+            colors = SwitchDefaults.colors(checkedThumbColor = OrbitSurface, checkedTrackColor = Purple,
+                uncheckedThumbColor = OrbitSurface, uncheckedTrackColor = Line, uncheckedBorderColor = Line))
     }
 }
 
 @Composable
 internal fun ProgressPage(
     history: List<StudyLog>, today: LocalDate, goal: Int, apps: DeviceApps, store: FocusStore,
-    usageAccess: Boolean, onUsageAccess: () -> Unit
+    usageAccess: Boolean, onFocus: () -> Unit, onUsageAccess: () -> Unit
 ) {
     val week = remember(history, today) {
         val grouped = history.groupBy { it.day }
@@ -325,45 +426,66 @@ internal fun ProgressPage(
         }
     }
     val weekTotal = week.sumOf { it.second }
-    val weekSessions = history.count { !it.day.isBefore(today.minusDays(6)) && !it.day.isAfter(today) }
-    val recent = remember(history) { history.sortedByDescending { it.endedAt }.take(30) }
+    val weekSessions = remember(history, today) { history.count { it.day in today.minusDays(6)..today } }
+    val recent = remember(history) { history.takeLast(30).asReversed() }
     val streak = remember(history, today) { studyStreak(history, today) }
+    val total = week.last().second
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 7.dp, bottom = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(13.dp)
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(17.dp)
     ) {
-        item { PageTitle("STUDY ACTIVITY", "See your progress.", "Every completed session adds to your study record.") }
-        item { GoalCard(week.last().second, goal) }
         item {
-            Panel {
-                Text("Study streak", color = Ink, fontWeight = FontWeight.Bold)
-                Text("$streak ${if (streak == 1) "day" else "days"} in a row", color = Purple)
+            Column(Modifier.fillMaxWidth().clip(CardShape).background(Lavender)
+                .border(1.dp, Line, CardShape).padding(horizontal = 17.dp, vertical = 13.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("DAILY STUDY GOAL", Modifier.weight(1f), color = Purple, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Text(if (streak == 0) "A fresh start" else "$streak day streak",
+                        Modifier.background(OrbitSurface, CircleShape).padding(horizontal = 19.dp, vertical = 2.dp),
+                        color = Purple, fontSize = 11.sp)
+                }
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(total.toString(), color = Ink, fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.SemiBold)
+                    Text("/ $goal min", color = Muted, fontSize = 16.sp)
+                }
+                LinearProgressIndicator(progress = { (total.toFloat() / goal).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                    color = Purple, trackColor = OrbitTrack, drawStopIndicator = {})
+                Text(when {
+                    total >= goal -> "You reached today’s target"
+                    total == 0 -> "Your first minute starts a new orbit."
+                    else -> "${goal - total} minutes to your daily target"
+                }, Modifier.padding(top = 3.dp), color = Purple, fontSize = 12.sp)
             }
         }
         item {
             Panel {
-                Text("Last 7 days", Modifier.semantics { heading() }, color = Ink, fontFamily = FontFamily.Serif, fontSize = 25.sp)
-                Text("$weekTotal min · $weekSessions ${if (weekSessions == 1) "session" else "sessions"}",
-                    color = Purple, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(14.dp))
-                val maximum = maxOf(1, week.maxOf { it.second })
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    week.forEach { (date, minutes) ->
-                        val current = date == today
-                        val label = date.format(DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH))
-                        Column(
-                            Modifier.weight(1f).semantics(mergeDescendants = true) { contentDescription = "$label, $minutes minutes" },
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(if (minutes > 0) minutes.toString() else "·", color = Muted, fontSize = 11.sp, maxLines = 1)
-                            Box(Modifier.height(81.dp).padding(vertical = 4.dp).widthIn(max = 34.dp).fillMaxWidth()
-                                .clip(RoundedCornerShape(7.dp)).background(Color(0xFFF1EDF6)), contentAlignment = Alignment.BottomCenter) {
-                                if (minutes > 0) Box(Modifier.fillMaxWidth()
-                                    .fillMaxHeight((minutes.toFloat() / maximum).coerceAtLeast(0.05f))
-                                    .clip(RoundedCornerShape(7.dp)).background(if (current) Purple else Lilac))
+                Text("Last 7 days · study time", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Row(Modifier.fillMaxWidth().padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("$weekTotal min", Modifier.weight(1f), color = Ink, fontWeight = FontWeight.SemiBold,
+                        fontSize = 28.sp, lineHeight = 34.sp)
+                    Text("$weekSessions ${if (weekSessions == 1) "session" else "sessions"}",
+                        Modifier.weight(.49f), color = Muted, fontSize = 12.sp)
+                }
+                if (weekTotal == 0) {
+                    Text("Your first session begins the story.", Modifier.padding(top = 12.dp, bottom = 9.dp), color = Muted, fontSize = 13.sp)
+                    OrbitButton("Start a focus session", onFocus, Modifier.fillMaxWidth(), primary = false)
+                } else {
+                    Spacer(Modifier.height(17.dp))
+                    val maximum = week.maxOf { it.second }
+                    Row(Modifier.fillMaxWidth()) {
+                        week.forEach { (date, minutes) ->
+                            val label = date.format(DateTimeFormatter.ofPattern("EEEE", Locale.getDefault()))
+                            Column(Modifier.weight(1f).semantics(mergeDescendants = true) {
+                                contentDescription = "$label, $minutes minutes"
+                            }, horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(Modifier.height(58.dp).width(24.dp), contentAlignment = Alignment.BottomCenter) {
+                                    if (minutes > 0) Box(Modifier.fillMaxWidth()
+                                        .fillMaxHeight((minutes.toFloat() / maximum).coerceAtLeast(0.08f))
+                                        .background(if (date == today) Purple else Lilac, RoundedCornerShape(6.dp)))
+                                }
+                                Text(label.take(1), Modifier.padding(top = 7.dp), color = Muted, fontSize = 12.sp)
                             }
-                            Text(label, color = if (current) Purple else Muted, fontSize = 10.sp, maxLines = 1)
                         }
                     }
                 }
@@ -371,142 +493,43 @@ internal fun ProgressPage(
         }
         item { ScreenTimePanel(apps, store, usageAccess, today, onUsageAccess) }
         item {
-            Text("Recent sessions", Modifier.padding(top = 5.dp).semantics { heading() },
-                color = Ink, fontFamily = FontFamily.Serif, fontSize = 25.sp)
-        }
-        if (recent.isEmpty()) item {
-            Panel {
-                Text("No completed sessions yet", fontWeight = FontWeight.Bold, color = Ink)
-                Text("Finish a focus timer to see it here.", color = Muted, fontSize = 13.sp)
-            }
+            Text("Recent sessions", Modifier.semantics { heading() }, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            if (recent.isEmpty()) Text("No sessions yet. Your first one belongs here.", color = Muted, fontSize = 12.sp)
         }
         items(recent) { session ->
-            Panel {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconTile(Glyph.BOOK, Purple, Lavender)
-                    Column(Modifier.weight(1f).padding(horizontal = 11.dp)) {
-                        Text(session.subject.ifBlank { "Focus session" }, color = Ink, fontWeight = FontWeight.Bold,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(session.day.format(DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH)), color = Muted, fontSize = 12.sp)
-                    }
-                    Text("${session.minutes} min", color = Purple, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                }
-            }
+            val name = session.subject.ifBlank { "Focus session" }
+            val date = session.day.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+            Text("$name · $date · ${session.minutes} min", color = Muted, fontSize = 12.sp)
         }
     }
 }
 
 @Composable
-private fun VideoRule(
-    title: String, description: String, glyph: Glyph, mode: Int, editable: Boolean, onMode: (Int) -> Unit
-) {
+private fun VideoRule(title: String, mode: Int, editable: Boolean, onMode: (Int) -> Unit) {
     Panel {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconTile(glyph, Purple, Lavender)
-            Column(Modifier.padding(start = 11.dp).weight(1f)) {
-                Text(title, color = Ink, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text(description, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, color = Ink, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+        Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             listOf("Off", "While studying", "Always").forEachIndexed { index, label ->
-                FilterChip(
-                    selected = mode == index, enabled = editable, onClick = { onMode(index) },
-                    label = { Text(label, fontSize = 11.sp) },
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Lavender)
-                )
+                val selected = mode == index
+                Box(
+                    Modifier.weight(if (index == 1) 1.55f else 1f).heightIn(min = 48.dp).clip(CircleShape)
+                        .selectable(selected, enabled = editable, role = Role.RadioButton, onClick = { onMode(index) }),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        label, Modifier.background(if (selected) Lavender else OrbitSurface, CircleShape)
+                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                        color = if (selected && editable) Purple else Muted,
+                        fontSize = 12.sp, lineHeight = 16.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
             }
-        }
-        if (mode != 0) {
-            Text("Detection can vary by app version.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
         }
     }
 }
 
 @Composable
 internal fun Panel(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(CardShape).background(White).border(1.dp, Line, CardShape).padding(15.dp),
+    Column(Modifier.fillMaxWidth().clip(CardShape).background(OrbitSurface).border(1.dp, Line, CardShape).padding(15.dp),
         content = content)
-}
-
-@Composable
-private fun IconTile(glyph: Glyph, color: Color, background: Color) {
-    Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(background), contentAlignment = Alignment.Center) {
-        Mark(glyph, color, 21)
-    }
-}
-
-internal enum class Glyph { TIMER, SHIELD, CHART, CALENDAR, SETTINGS, PLAY, REELS, PAUSE, TARGET, ARROW, BOOK, SEARCH, CHECK }
-
-@Composable
-internal fun Mark(glyph: Glyph, color: Color, dimension: Int) {
-    Canvas(Modifier.size(dimension.dp)) {
-        scale(size.width / 24f, size.height / 24f, pivot = Offset.Zero) {
-            val stroke = Stroke(1.7f, cap = StrokeCap.Round)
-            fun line(x1: Float, y1: Float, x2: Float, y2: Float) =
-                drawLine(color, Offset(x1, y1), Offset(x2, y2), 1.7f, StrokeCap.Round)
-
-            when (glyph) {
-                Glyph.TIMER -> {
-                    drawCircle(color, 7.5f, Offset(12f, 13.5f), style = stroke)
-                    line(10f, 2f, 14f, 2f); line(12f, 2f, 12f, 6f)
-                    line(12f, 13.5f, 15f, 11f)
-                }
-                Glyph.SHIELD -> drawPath(Path().apply {
-                    moveTo(12f, 2.5f); lineTo(20f, 6f); lineTo(20f, 12f)
-                    quadraticTo(19.8f, 17.4f, 12f, 21.2f)
-                    quadraticTo(4.2f, 17.4f, 4f, 12f)
-                    lineTo(4f, 6f); close()
-                }, color, style = stroke)
-                Glyph.CHART -> {
-                    line(4f, 20f, 20f, 20f); line(7f, 15f, 7f, 11f)
-                    line(12f, 15f, 12f, 5f); line(17f, 15f, 17f, 8f)
-                }
-                Glyph.CALENDAR -> {
-                    drawRoundRect(color, Offset(3f, 5f), Size(18f, 16f), CornerRadius(3f), style = stroke)
-                    line(3f, 10f, 21f, 10f)
-                    line(8f, 3f, 8f, 7f)
-                    line(16f, 3f, 16f, 7f)
-                    line(8f, 15f, 10f, 15f)
-                    line(14f, 15f, 16f, 15f)
-                }
-                Glyph.SETTINGS -> {
-                    line(3f, 6f, 21f, 6f); line(3f, 12f, 21f, 12f); line(3f, 18f, 21f, 18f)
-                    listOf(Offset(8f, 6f), Offset(16f, 12f), Offset(10f, 18f)).forEach {
-                        drawCircle(Paper, 2.6f, it); drawCircle(color, 2.6f, it, style = stroke)
-                    }
-                }
-                Glyph.PLAY -> drawPath(Path().apply {
-                    moveTo(7f, 4f); lineTo(20f, 12f); lineTo(7f, 20f); close()
-                }, color)
-                Glyph.REELS -> {
-                    drawRoundRect(color, Offset(3f, 3f), Size(18f, 18f), CornerRadius(4f), style = stroke)
-                    line(3f, 8f, 21f, 8f)
-                    line(8f, 3f, 11f, 8f)
-                    line(14f, 3f, 17f, 8f)
-                    drawPath(Path().apply {
-                        moveTo(10f, 11f); lineTo(15f, 14.5f); lineTo(10f, 18f); close()
-                    }, color)
-                }
-                Glyph.PAUSE -> { line(9f, 5f, 9f, 19f); line(15f, 5f, 15f, 19f) }
-                Glyph.TARGET -> {
-                    drawCircle(color, 8.5f, Offset(12f, 12f), style = stroke)
-                    drawCircle(color, 4.7f, Offset(12f, 12f), style = stroke)
-                    drawCircle(color, 1.4f, Offset(12f, 12f))
-                }
-                Glyph.ARROW -> {
-                    line(4f, 12f, 19f, 12f); line(14f, 7f, 19f, 12f); line(14f, 17f, 19f, 12f)
-                }
-                Glyph.BOOK -> {
-                    drawRoundRect(color, Offset(4f, 3f), Size(16f, 18f), CornerRadius(2f), style = stroke)
-                    line(8f, 3f, 8f, 21f); line(11f, 8f, 17f, 8f); line(11f, 12f, 15f, 12f)
-                }
-                Glyph.SEARCH -> {
-                    drawCircle(color, 6.1f, Offset(10f, 10f), style = stroke); line(14.5f, 14.5f, 20f, 20f)
-                }
-                Glyph.CHECK -> { line(4f, 12f, 9f, 17f); line(9f, 17f, 20f, 6f) }
-            }
-        }
-    }
 }

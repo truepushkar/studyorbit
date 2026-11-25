@@ -23,8 +23,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
@@ -32,7 +32,6 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -46,11 +45,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,19 +58,6 @@ import java.time.LocalDate
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
 
-internal val Paper = Color(0xFFF8F7F2)
-internal val Ink = Color(0xFF26243A)
-internal val Muted = Color(0xFF625E73)
-internal val Purple = Color(0xFF5C4193)
-internal val Lavender = Color(0xFFECE4FC)
-internal val Lilac = Color(0xFFD9C6FF)
-internal val Line = Color(0xFFE7E3EB)
-internal val Mint = Color(0xFFE4EEE4)
-internal val Forest = Color(0xFF305442)
-internal val White = Color(0xFFFFFFFF)
-internal val Night = Color(0xFF232037)
-internal val CardShape = RoundedCornerShape(24.dp)
-
 class MainActivity : ComponentActivity() {
     private var resumeCount by mutableIntStateOf(0)
     private var focusRequests by mutableIntStateOf(0)
@@ -84,8 +67,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
         val store = FocusStore(this)
         val apps = DeviceApps(this)
@@ -137,8 +120,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Destination(val label: String, val glyph: Glyph) {
-    FOCUS("Focus", Glyph.TIMER), BLOCK("Block", Glyph.SHIELD), PLANNER("Planner", Glyph.CALENDAR), PROGRESS("Progress", Glyph.CHART)
+private enum class Destination(val label: String, val subtitle: String, val icon: Int, val selectedIcon: Int) {
+    FOCUS("Focus", "A little space to do your best work.", R.drawable.fig_focus, R.drawable.fig_focus_active),
+    BLOCK("Block", "Protect your attention, on your terms.", R.drawable.fig_block, R.drawable.fig_block_active),
+    PLANNER("Planner", "A little structure. More room to focus.", R.drawable.fig_planner, R.drawable.fig_planner_active),
+    PROGRESS("Progress", "Small sessions. A growing habit.", R.drawable.fig_progress, R.drawable.fig_progress_active)
 }
 
 @Composable
@@ -156,6 +142,10 @@ private fun StudyOrbit(
     var strictConfirmation by rememberSaveable { mutableStateOf(false) }
     var active by remember { mutableStateOf(store.session()) }
     var history by remember { mutableStateOf(store.history()) }
+    var result by rememberSaveable { mutableIntStateOf(-1) }
+    var resultTime by rememberSaveable { mutableLongStateOf(0L) }
+    var resultKind by rememberSaveable { mutableStateOf(FocusResult.FOCUS) }
+    var secondaryPage by remember { mutableStateOf(false) }
     var focusMinutes by remember { mutableIntStateOf(store.focusMinutes) }
     var breakMinutes by remember { mutableIntStateOf(store.breakMinutes) }
     var goal by remember { mutableIntStateOf(store.goalMinutes) }
@@ -174,16 +164,42 @@ private fun StudyOrbit(
         Build.VERSION.SDK_INT < 31 || context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
     }
     var today by remember { mutableStateOf(LocalDate.now()) }
+    var protectionSetup by rememberSaveable { mutableStateOf(false) }
     val blockAccess = remember(resumes) { apps.hasBlockAccess() }
     val usageAccess = remember(resumes) { apps.hasUsageAccess() }
+    val overlayAccess = remember(resumes) { Settings.canDrawOverlays(context) }
+    val protectionRunning = UsageBlockService.running
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) store.syncStudyNotification()
     }
     val asked = rememberSaveable { mutableStateOf(store.prefs.getBoolean("asked_notifications", false)) }
 
     fun refresh() {
-        active = store.session()
-        history = store.history()
+        val previous = active
+        val next = store.session()
+        val updatedHistory = store.history()
+        if (previous != null && next == null) {
+            val newLog = updatedHistory.lastOrNull()?.takeIf { it != history.lastOrNull() }
+            when {
+                newLog != null -> {
+                    result = newLog.minutes
+                    resultTime = result * MINUTE
+                    resultKind = if (previous.mode == TimerMode.STOPWATCH) FocusResult.STOPWATCH else FocusResult.FOCUS
+                }
+                previous.mode == TimerMode.POMODORO && previous.phase == Phase.BREAK && previous.displayTime() == 0L -> {
+                    result = updatedHistory.takeLast(previous.rounds).sumOf { it.minutes }
+                    resultTime = result * MINUTE
+                    resultKind = FocusResult.CYCLE
+                }
+                previous.phase == Phase.BREAK && previous.displayTime() == 0L -> {
+                    result = 0
+                    resultTime = previous.duration
+                    resultKind = FocusResult.BREAK
+                }
+            }
+        }
+        active = next
+        history = updatedHistory
         today = LocalDate.now()
     }
 
@@ -195,6 +211,19 @@ private fun StudyOrbit(
             })
         } catch (_: android.content.ActivityNotFoundException) {
             Toast.makeText(context, "Open Android Settings to grant access.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun startAppProtection() {
+        if (!usageAccess || !overlayAccess || UsageBlockService.running) return
+        runCatching { context.startForegroundService(Intent(context, UsageBlockService::class.java)) }
+            .onFailure { Toast.makeText(context, "Open StudyOrbit to start app protection.", Toast.LENGTH_LONG).show() }
+    }
+
+    LaunchedEffect(resumes) {
+        if (resumes > 0 && store.prefs.getBoolean(UsageBlockService.ENABLED, false)) {
+            if (usageAccess && overlayAccess) startAppProtection()
+            else context.stopService(Intent(context, UsageBlockService::class.java))
         }
     }
 
@@ -215,6 +244,7 @@ private fun StudyOrbit(
     }
 
     fun launchSession(minutes: Int, task: String? = null) {
+        result = -1
         val targetMode = if (task == null) mode else TimerMode.TIMER
         val targetPhase = if (task == null && mode == TimerMode.TIMER) phase else Phase.FOCUS
         store.start(targetPhase, minutes, targetMode, task == null && strict && targetPhase == Phase.FOCUS, task ?: subject)
@@ -228,6 +258,7 @@ private fun StudyOrbit(
         if (focusRequests > 0) {
             destination = Destination.FOCUS
             settings = false
+            secondaryPage = false
             disclosure = false
         }
     }
@@ -236,6 +267,7 @@ private fun StudyOrbit(
         if (plannerRequests > 0) {
             destination = Destination.PLANNER
             settings = false
+            secondaryPage = false
             disclosure = false
         }
     }
@@ -283,29 +315,33 @@ private fun StudyOrbit(
         }
     }
 
+    val background = if (destination == Destination.FOCUS && !settings) theme.pageColor else Paper
     MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = Purple, onPrimary = White, primaryContainer = Lavender, onPrimaryContainer = Ink,
-            background = Paper, onBackground = Ink, surface = White, onSurface = Ink,
-            surfaceVariant = Lavender, onSurfaceVariant = Muted, outline = Color(0xFF9A92A8)
+        colorScheme = darkColorScheme(
+            primary = Purple, onPrimary = OnAccent, primaryContainer = Lavender, onPrimaryContainer = Purple,
+            background = Paper, onBackground = Ink, surface = OrbitSurface, onSurface = Ink,
+            surfaceVariant = Night, onSurfaceVariant = Muted, outline = Line, outlineVariant = Line
         ),
-        typography = Typography()
+        typography = orbitTypography
     ) {
-        Surface(Modifier.fillMaxSize(), color = Paper) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Surface(Modifier.fillMaxSize(), color = background, contentColor = Ink) {
+            Column(Modifier.fillMaxSize().orbitInsets(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Column(Modifier.widthIn(max = 580.dp).fillMaxWidth().weight(1f)) {
-                    AppHeader { settings = true }
+                    if (!secondaryPage) AppHeader(destination, active, result, resultKind,
+                        onTimer = { destination = Destination.FOCUS }, onSettings = { settings = true })
                     when (destination) {
                         Destination.FOCUS -> FocusPage(
-                            active = active,
+                            active = active, result = result, resultTime = resultTime, resultKind = resultKind,
+                            restMinutes = breakMinutes, rounds = store.rounds, longBreak = store.longBreakMinutes,
+                            onReset = { result = -1 },
                             phase = active?.phase ?: if (mode == TimerMode.TIMER) phase else Phase.FOCUS,
                             minutes = if (mode != TimerMode.TIMER || phase == Phase.FOCUS) focusMinutes else breakMinutes,
                             mode = active?.mode ?: mode, strict = active?.strict ?: strict, theme = theme,
+                            sound = sound,
                             streak = if (nudges) remember(history, today) { studyStreak(history, today) } else null,
                             subject = subject,
                             goal = goal,
                             total = remember(history, today) { history.filter { it.day == today }.sumOf { it.minutes } },
-                            today = today,
                             onMode = { mode = it; store.prefs.edit().putInt("timer_mode", it.ordinal).apply() },
                             onStrict = { strict = it; store.prefs.edit().putBoolean("strict_preference", it).apply() },
                             onPin = onPin,
@@ -325,13 +361,28 @@ private fun StudyOrbit(
                             },
                             onPause = { store.pauseOrResume(); refresh(); syncAudio() },
                             onEnd = { endConfirmation = true },
+                            onTheme = {
+                                theme = it
+                                store.prefs.edit().putInt("timer_theme", it.ordinal).apply()
+                            },
+                            onSound = {
+                                sound = it
+                                store.prefs.edit().putInt("soundscape", it.ordinal).apply()
+                                syncAudio()
+                            },
+                            onMiniTimer = if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) ({
+                                context.startActivity(Intent(context, MiniTimerActivity::class.java)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }) else null,
                             onGoal = { destination = Destination.PROGRESS },
                             shortcuts = { StudyShortcuts(readContentRules(store.prefs)) }
                         )
                         Destination.BLOCK -> BlockPage(
                             apps, store, blockAccess, usageAccess, active?.strict == true, today, resumes,
+                            appProtection = protectionRunning, protectionReady = usageAccess && overlayAccess,
+                            onSubpage = { secondaryPage = it },
+                            onAppProtection = { protectionSetup = true },
                             onBlockAccess = { disclosure = true },
-                            onUsageAccess = { openSettings(Settings.ACTION_USAGE_ACCESS_SETTINGS) },
                             adminActive = adminActive,
                             onAdmin = {
                                 if (adminActive) {
@@ -358,13 +409,43 @@ private fun StudyOrbit(
                         )
                         Destination.PROGRESS -> ProgressPage(
                             history, today, goal, apps, store, usageAccess,
+                            onFocus = { result = -1; destination = Destination.FOCUS },
                             onUsageAccess = { openSettings(Settings.ACTION_USAGE_ACCESS_SETTINGS) }
                         )
                     }
                 }
-                BottomTabs(destination) { destination = it }
+                if (!secondaryPage) BottomTabs(destination) { destination = it }
             }
         }
+        if (protectionSetup) AlertDialog(
+            onDismissRequest = { protectionSetup = false },
+            title = { Text("Whole-app protection") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Block selected apps during focus or when they reach a daily limit. StudyOrbit checks which app is open and shows a blocking screen.")
+                    if (!usageAccess) TextButton(onClick = { openSettings(Settings.ACTION_USAGE_ACCESS_SETTINGS) }) {
+                        Text("Allow Usage Access")
+                    }
+                    if (!overlayAccess) TextButton(onClick = {
+                        openSettings(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, data = Uri.parse("package:${context.packageName}"))
+                    }) { Text("Allow display over other apps") }
+                    if (usageAccess && overlayAccess) Text("Both permissions are ready.", color = Forest)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = active?.strict != true && (protectionRunning || (usageAccess && overlayAccess)),
+                    onClick = {
+                        store.prefs.edit().putBoolean(UsageBlockService.ENABLED, !protectionRunning).apply()
+                        if (protectionRunning) context.stopService(Intent(context, UsageBlockService::class.java))
+                        else {
+                            startAppProtection()
+                            requestNotifications()
+                        }
+                        protectionSetup = false
+                    }) { Text(if (protectionRunning) "Stop protection" else "Start protection") }
+            },
+            dismissButton = { TextButton(onClick = { protectionSetup = false }) { Text("Close") } }
+        )
 
         if (settings) SettingsDialog(
             store, focusMinutes, breakMinutes, goal, theme, sound, nudges,
@@ -390,16 +471,20 @@ private fun StudyOrbit(
                 settings = false
             }
         )
-        if (strictConfirmation) AlertDialog(
-            onDismissRequest = { strictConfirmation = false },
-            title = { Text("Start in Strict Mode?") },
-            text = { Text("You won’t be able to pause, end early, or edit blocking rules in StudyOrbit until this ${if (mode == TimerMode.POMODORO) "cycle" else "timer"} ends.") },
-            confirmButton = { TextButton(onClick = { strictConfirmation = false; launchSession(focusMinutes) }) { Text("Start strict session") } },
-            dismissButton = { TextButton(onClick = { strictConfirmation = false }) { Text("Cancel") } }
-        )
+        if (strictConfirmation) OrbitSheet({ strictConfirmation = false }) {
+            OrbitHeading("Stay in your orbit?", size = 26)
+            Text("Strict Mode hides Pause, Resume, End, and Float timer. Your blocking rules cannot be changed until the session finishes.",
+                color = Muted, fontSize = 16.sp, lineHeight = 23.sp)
+            Spacer(Modifier.height(22.dp))
+            Text("$focusMinutes-minute focus" + if (subject.isBlank()) "" else " · $subject",
+                color = Purple, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(28.dp))
+            OrbitButton("Start strict session", { strictConfirmation = false; launchSession(focusMinutes) }, Modifier.fillMaxWidth())
+            OrbitButton("Not now", { strictConfirmation = false }, Modifier.fillMaxWidth(), primary = false, rounded = false)
+        }
         if (disclosure) AlertDialog(
             onDismissRequest = { disclosure = false },
-            title = { Text("Enable app blocking") },
+            title = { Text("Enable advanced filters") },
             text = {
                 Text(stringResource(R.string.blocking_disclosure))
             },
@@ -411,121 +496,105 @@ private fun StudyOrbit(
             },
             dismissButton = { TextButton(onClick = { disclosure = false }) { Text("Cancel") } }
         )
-        if (endConfirmation) AlertDialog(
-            onDismissRequest = { endConfirmation = false },
-            title = { Text("End this session?") },
-            text = { Text(if (active?.mode == TimerMode.STOPWATCH) "Full minutes on the stopwatch count toward your goal."
-                else "Only completed focus rounds count toward your goal.") },
-            confirmButton = {
-                TextButton(onClick = { endConfirmation = false; store.stop(); refresh(); syncAudio() }) { Text("End session") }
-            },
-            dismissButton = { TextButton(onClick = { endConfirmation = false }) { Text("Keep going") } }
-        )
-    }
-}
-
-@Composable
-private fun AppHeader(onSettings: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 23.dp, end = 18.dp, top = 11.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Image(painterResource(R.drawable.ic_studyorbit), contentDescription = null, modifier = Modifier.size(39.dp))
-        Text(stringResource(R.string.app_name), Modifier.padding(start = 9.dp).weight(1f), fontSize = 23.sp,
-            color = Ink, fontWeight = FontWeight.Bold)
-        IconButton(
-            onClick = onSettings,
-            modifier = Modifier.size(48.dp).semantics { contentDescription = "Settings" }
-        ) {
-            Box(Modifier.size(39.dp).border(1.dp, Line, CircleShape), contentAlignment = Alignment.Center) {
-                Mark(Glyph.SETTINGS, Ink, 19)
-            }
+        if (endConfirmation) OrbitSheet({ endConfirmation = false }) {
+            val stopwatch = active?.mode == TimerMode.STOPWATCH
+            OrbitHeading(if (stopwatch) "Finish this stopwatch session?" else "End this ${active?.phase?.label?.lowercase() ?: "focus"} session?", size = 26)
+            Text(if (stopwatch) "Full minutes on the stopwatch count toward your goal."
+                else "Unfinished countdown rounds don’t add study minutes. A completed round is always saved.",
+                color = Muted, fontSize = 16.sp, lineHeight = 23.sp)
+            Spacer(Modifier.height(43.dp))
+            OrbitButton("Keep going", { endConfirmation = false }, Modifier.fillMaxWidth(), primary = !stopwatch)
+            OrbitButton(if (stopwatch) "Save & finish" else "End session", {
+                endConfirmation = false
+                val previous = active
+                val time = previous?.displayTime() ?: 0L
+                store.stop()
+                refresh()
+                if (previous != null && result < 0) {
+                    result = 0
+                    resultKind = if (stopwatch) FocusResult.STOPWATCH else FocusResult.ENDED
+                }
+                if (previous != null && resultKind in listOf(FocusResult.STOPWATCH, FocusResult.ENDED)) resultTime = time
+                syncAudio()
+            }, Modifier.fillMaxWidth(), primary = stopwatch, rounded = false)
         }
     }
 }
 
 @Composable
+private fun AppHeader(
+    destination: Destination, session: Session?, result: Int, resultKind: FocusResult,
+    onTimer: () -> Unit, onSettings: () -> Unit
+) {
+    val subtitle = when {
+        destination != Destination.FOCUS -> destination.subtitle
+        session != null -> "Your next little orbit starts here."
+        result >= 0 && resultKind == FocusResult.ENDED -> "Your unfinished countdown wasn’t saved."
+        result >= 0 && resultKind == FocusResult.BREAK -> "A little space before your next orbit."
+        result >= 0 -> "One orbit closer to your goal."
+        else -> destination.subtitle
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = orbitTopPadding(), bottom = 19.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            OrbitHeading(destination.label)
+            if (destination != Destination.FOCUS && session != null) {
+                ActiveTimerLink(session, onTimer)
+            } else {
+                Text(subtitle, color = Muted, fontSize = 14.sp, lineHeight = 19.sp)
+            }
+        }
+        IconButton(onClick = onSettings, modifier = Modifier.offset(y = (-8).dp)) {
+            Image(painterResource(if (destination == Destination.FOCUS) R.drawable.fig_sun_active else R.drawable.fig_sun),
+                contentDescription = "Settings", modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun ActiveTimerLink(session: Session, onTimer: () -> Unit) {
+    val time = rememberDisplayedTime(session)
+    val stopwatch = session.mode == TimerMode.STOPWATCH
+    val status = when {
+        session.strict -> "Strict focus"
+        !session.running -> "Paused"
+        session.mode == TimerMode.POMODORO -> "Pomodoro"
+        stopwatch -> "Stopwatch"
+        session.phase == Phase.BREAK -> "Break running"
+        else -> "Focus running"
+    }
+    Text("$status · ${timerDigits(time.value ?: session.remaining, stopwatch)}  → Return to timer",
+        Modifier.clickable(onClick = onTimer, role = Role.Button), color = Purple, fontSize = 14.sp, lineHeight = 19.sp)
+}
+
+@Composable
 private fun BottomTabs(current: Destination, onSelect: (Destination) -> Unit) {
     Surface(
-        modifier = Modifier.widthIn(max = 580.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(28.dp),
-        color = Night
+        modifier = Modifier.widthIn(max = 580.dp).fillMaxWidth().padding(horizontal = 24.dp),
+        shape = CircleShape, color = OrbitSurface, border = BorderStroke(1.dp, Line)
     ) {
         Row(Modifier.selectableGroup().padding(5.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Destination.entries.forEach { tab ->
                 val selected = tab == current
-                val color = if (selected) Night else Color(0xFFE4DDF0)
                 Column(
-                    modifier = Modifier.weight(1f).heightIn(min = 56.dp).clip(RoundedCornerShape(22.dp))
-                        .background(if (selected) Lilac else Color.Transparent)
+                    modifier = Modifier.weight(1f).heightIn(min = 58.dp).clip(CircleShape)
+                        .background(if (selected) Lavender else Color.Transparent)
                         .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(tab) })
-                        .padding(horizontal = 3.dp, vertical = 6.dp),
+                        .padding(horizontal = 3.dp, vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
+                    verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically)
                 ) {
-                    Mark(tab.glyph, color, 21)
-                    Text(tab.label, color = color, fontSize = 12.sp, textAlign = TextAlign.Center,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+                    Image(painterResource(if (selected) tab.selectedIcon else tab.icon), null, Modifier.size(22.dp))
+                    Text(tab.label, color = if (selected) Purple else Muted, fontSize = 11.sp, lineHeight = 14.sp,
+                        textAlign = TextAlign.Center, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
                 }
             }
         }
     }
 }
 
-@Composable
-internal fun PageTitle(kicker: String, title: String, subtitle: String) {
-    Text(kicker, color = Purple, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.9.sp)
-    Text(title, Modifier.padding(top = 5.dp).semantics { heading() }, color = Ink, fontFamily = FontFamily.Serif,
-        fontSize = 41.sp, lineHeight = 44.sp, letterSpacing = (-1.6).sp)
-    Text(subtitle, Modifier.padding(top = 7.dp), color = Muted, fontSize = 14.sp, lineHeight = 20.sp)
-}
-
-@Composable
-internal fun GoalCard(total: Int, goal: Int, onClick: (() -> Unit)? = null) {
-    val card = if (onClick == null) Modifier else Modifier.clickable(onClickLabel = "View study progress", onClick = onClick)
-    Column(Modifier.fillMaxWidth().clip(CardShape).background(Mint).then(card).padding(15.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(39.dp).clip(RoundedCornerShape(12.dp)).background(White.copy(alpha = 0.65f)),
-                contentAlignment = Alignment.Center) { Mark(Glyph.TARGET, Forest, 21) }
-            Column(Modifier.padding(start = 11.dp).weight(1f)) {
-                Text("Daily study goal", color = Forest, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text("$total of $goal min", color = Forest, fontSize = 12.sp)
-            }
-            if (onClick != null) Mark(Glyph.ARROW, Forest, 19)
-        }
-        Spacer(Modifier.height(11.dp))
-        LinearProgressIndicator(
-            progress = { (total.toFloat() / goal).coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
-            trackColor = Color(0xFFCBDDCD), color = Forest, drawStopIndicator = {}
-        )
-    }
-}
-
-@Composable
-internal fun NumberDialog(title: String, label: String, initial: Int, range: IntRange, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
-    var value by rememberSaveable { mutableStateOf(initial.toString()) }
-    val parsed = value.toIntOrNull()?.takeIf { it in range }
-    AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(title) },
-        text = { NumberField(value, { value = it }, label, range) },
-        confirmButton = { TextButton(enabled = parsed != null, onClick = { parsed?.let(onSave) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
-}
-
-@Composable
-internal fun NumberField(value: String, onChange: (String) -> Unit, label: String, range: IntRange) {
-    OutlinedTextField(
-        value, { onChange(it.filter(Char::isDigit).take(3)) }, Modifier.fillMaxWidth(),
-        label = { Text(label) }, singleLine = true,
-        supportingText = { Text("${range.first}–${range.last} min") },
-        isError = value.isNotEmpty() && value.toIntOrNull() !in range,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-    )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SettingsDialog(
     store: FocusStore, focus: Int, rest: Int, goal: Int,
@@ -545,37 +614,70 @@ private fun SettingsDialog(
     val c = goalText.toIntOrNull() ?: 0
     val d = longBreak.toIntOrNull() ?: 0
     val e = rounds.toIntOrNull() ?: 0
-    AlertDialog(
-        onDismissRequest = onDismiss, title = { Text("Study settings") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                NumberField(focusText, { focusText = it }, "Focus duration", 1..180)
-                NumberField(restText, { restText = it }, "Short break duration", 1..180)
-                NumberField(longBreak, { longBreak = it }, "Long break duration", 1..180)
-                NumberField(rounds, { rounds = it }, "Pomodoro rounds", 2..12)
-                NumberField(goalText, { goalText = it }, "Daily goal", 1..720)
-                Text("Timer theme", color = Ink, fontWeight = FontWeight.SemiBold)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TimerTheme.entries.forEach {
-                        FilterChip(selected = selectedTheme == it, onClick = { selectedTheme = it }, label = { Text(it.label) })
-                    }
-                }
-                Text("Focus sounds", color = Ink, fontWeight = FontWeight.SemiBold)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Soundscape.entries.forEach {
-                        FilterChip(selected = selectedSound == it, onClick = { selectedSound = it }, label = { Text(it.label) })
-                    }
-                }
-                ToggleRule("Companion nudges", "Show study suggestions and streaks on the Focus tab.", showNudges) { showNudges = it }
-                TextButton(onClick = onNotifications) { Text("Notification settings") }
+    OrbitFullScreen(onDismiss) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(start = 24.dp, end = 24.dp, top = orbitTopPadding(), bottom = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            IconButton(onClick = onDismiss, modifier = Modifier.offset(x = (-17).dp)) {
+                Text("‹", Modifier.semantics { contentDescription = "Back" }, color = Purple, fontSize = 28.sp)
             }
-        },
-        confirmButton = { TextButton(enabled = a in 1..180 && b in 1..180 && c in 1..720 && d in 1..180 && e in 2..12,
-            onClick = {
+            Row(
+                Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OrbitHeading("Study preferences", Modifier.weight(1f))
+                Image(painterResource(R.drawable.ic_studyorbit), null, Modifier.size(38.dp))
+            }
+            Text("Saved on this device · no account needed", color = Muted, fontSize = 13.sp)
+            Spacer(Modifier.height(13.dp))
+            PreferenceNumber("Focus duration", focusText, { focusText = it }, "min", 1..180)
+            PreferenceNumber("Short break", restText, { restText = it }, "min", 1..180)
+            PreferenceNumber("Long break", longBreak, { longBreak = it }, "min", 1..180)
+            PreferenceNumber("Pomodoro rounds", rounds, { rounds = it }, " ·  2–12", 2..12)
+            PreferenceNumber("Daily goal", goalText, { goalText = it }, "min  ·  1–720", 1..720)
+            PreferenceChoice("Sound", selectedSound.label, Soundscape.entries, { it.label }, { selectedSound = it })
+            PreferenceChoice("Theme", selectedTheme.label, TimerTheme.entries, { it.label }, { selectedTheme = it })
+            Spacer(Modifier.height(7.dp))
+            ToggleRule("Companion nudges", "", showNudges) { showNudges = it }
+            TextButton(onClick = onNotifications, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 58.dp)) {
+                Text("Notification settings  ↗", fontWeight = FontWeight.SemiBold)
+            }
+            OrbitButton("Save settings", {
                 store.longBreakMinutes = d
                 store.rounds = e
                 onSave(a, b, c, selectedTheme, selectedSound, showNudges)
-            }) { Text("Save settings") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
+            }, Modifier.fillMaxWidth(), enabled = a in 1..180 && b in 1..180 && c in 1..720 && d in 1..180 && e in 2..12)
+            OrbitButton("Cancel", onDismiss, Modifier.fillMaxWidth(), primary = false, rounded = false)
+        }
+    }
+}
+
+@Composable
+private fun PreferenceNumber(label: String, value: String, onChange: (String) -> Unit, suffix: String, range: IntRange) {
+    OrbitField(label, value, { onChange(it.filter(Char::isDigit).take(3)) }, Modifier.fillMaxWidth(),
+        suffix = suffix, numeric = true, inline = true, error = value.toIntOrNull() !in range)
+}
+
+@Composable
+private fun <T> PreferenceChoice(
+    label: String, current: String, options: List<T>, title: (T) -> String, onChoice: (T) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 54.dp).clip(FieldShape).background(OrbitSurface)
+                .clickable(role = Role.Button) { expanded = true }.padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, Modifier.weight(1.25f), color = Ink, fontSize = 14.sp)
+            Text(current, Modifier.weight(1f), color = Purple, fontSize = 14.sp)
+        }
+        DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { item ->
+                DropdownMenuItem(text = { Text(title(item)) }, onClick = { onChoice(item); expanded = false })
+            }
+        }
+    }
 }

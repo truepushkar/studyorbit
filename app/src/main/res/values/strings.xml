@@ -3,9 +3,9 @@
     <string name="open_app">Open StudyOrbit</string>
     <string name="service_description">Applies the app, video, browser, and YouTube study rules you choose. Screen content stays on your device.</string>
     <string name="blocking_disclosure">StudyOrbit uses Android Accessibility to identify apps, detect short-video viewers, and check the visible website address or YouTube channel against your rules. It can go back or cover a blocked screen. The screen content it inspects is never saved or shared.</string>
-    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">#F8F7F2</item>
-        <item name="android:colorAccent">#5C4193</item>
-        <item name="android:windowLightStatusBar">true</item>
+    <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#101318</item>
+        <item name="android:colorAccent">#D7C5FB</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

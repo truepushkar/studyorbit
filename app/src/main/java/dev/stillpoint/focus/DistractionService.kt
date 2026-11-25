@@ -9,8 +9,6 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -21,8 +19,6 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
-import android.widget.Button
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -378,9 +374,10 @@ class DistractionService : AccessibilityService() {
     private fun blockFor(window: ScreenWindow, policy: ScanPolicy, now: Long): Block? {
         if (!window.eligible) return null
         val foreground = window.pkg
-        if (policy.studying && foreground in policy.focusPackages) return Block("Blocked during this focus session")
+        val enforceWholeApp = !UsageBlockService.running
+        if (enforceWholeApp && policy.studying && foreground in policy.focusPackages) return Block("Blocked during this focus session")
         val limit = dailyLimits[foreground]
-        if (limit != null && overLimit(foreground, limit, now)) {
+        if (enforceWholeApp && limit != null && overLimit(foreground, limit, now)) {
             return Block("Daily limit reached · $limit min")
         }
         if (window.contentBlock != null) return window.contentBlock
@@ -395,7 +392,7 @@ class DistractionService : AccessibilityService() {
         if (!relevant || !apps.canBlock(foreground)) return ScreenWindow(id, bounds, foreground)
         val label = appLabels.get(foreground) ?: apps.label(foreground).also { appLabels.put(foreground, it) }
         val window = ScreenWindow(id, bounds, foreground, eligible = true, label = label)
-        if (foreground !in policy.contentWatch || (policy.studying && foreground in policy.focusPackages)) return window
+        if (foreground !in policy.contentWatch) return window
         val video = videoTargets.firstOrNull { it.pkg == foreground }
         val youtubeStudy = foreground == YOUTUBE && policy.studying && policy.content.youtubeStudy
         val videoEnabled = video != null && (youtubeStudy || videoRuleApplies(policy.videoModes[video] ?: 0, policy.studying))
@@ -457,8 +454,12 @@ class DistractionService : AccessibilityService() {
         val existing = windowCovers[id]
         if (existing?.reason == reason && existing.bounds == bounds) return
         removeWindowCover(id)
-        val view = shieldText(reason, 16f, "#E1D9F4").apply {
-            setBackgroundColor(Color.rgb(35, 32, 55))
+        val view = TextView(this).apply {
+            text = reason
+            textSize = 16f
+            setTextColor(Color.rgb(215, 197, 251))
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.rgb(16, 19, 24))
             setPadding(dp(8), dp(8), dp(8), dp(8))
             isClickable = true
         }
@@ -542,45 +543,20 @@ class DistractionService : AccessibilityService() {
     private fun showShield(pkg: String, label: String, reason: String, allowBack: Boolean = false) {
         if (covered == pkg && coveredReason == reason) return
         hideShield()
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            isClickable = true
-            setPadding(dp(32), dp(36), dp(32), dp(36))
-            setBackgroundColor(Color.rgb(35, 32, 55))
-        }
-        panel.addView(ImageView(this).apply {
-            setImageResource(R.drawable.ic_studyorbit)
-            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }, LinearLayout.LayoutParams(dp(68), dp(68)).apply { bottomMargin = dp(12) })
-        panel.addView(shieldText(label, 32f, "#FFFFFF").apply {
-            typeface = Typeface.create("serif", Typeface.NORMAL)
-        })
-        panel.addView(shieldText(reason, 16f, "#E1D9F4").apply { setPadding(0, dp(8), 0, dp(24)) })
-        panel.addView(Button(this).apply {
-            text = if (allowBack) "Go back" else "Go to Home"
-            isAllCaps = false
-            setTextColor(Color.rgb(35, 32, 55))
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(218, 200, 255))
-                cornerRadius = dp(22).toFloat()
-            }
-            setPadding(dp(30), 0, dp(30), 0)
-            setOnClickListener {
+        val panel = blockCoverView(this, label, reason, store.session(), advanced = true,
+            primaryLabel = if (allowBack) "Go back" else "Go to Home",
+            primaryAction = {
                 if (performGlobalAction(if (allowBack) GLOBAL_ACTION_BACK else GLOBAL_ACTION_HOME)) hideShield()
-            }
-        }, LinearLayout.LayoutParams(dp(190), dp(52)))
-        panel.addView(Button(this).apply {
-            text = getString(R.string.open_app)
-            isAllCaps = false
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.TRANSPARENT)
-            setOnClickListener {
-                startActivity(Intent(this@DistractionService, MainActivity::class.java)
+            },
+            goHome = if (allowBack) ({
+                if (performGlobalAction(GLOBAL_ACTION_HOME)) hideShield()
+            }) else null,
+            openApp = {
+                startActivity(Intent(this, MainActivity::class.java)
+                    .setAction(MainActivity.SHOW_FOCUS)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
                 hideShield()
-            }
-        }, LinearLayout.LayoutParams(dp(190), dp(48)))
+            })
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
@@ -594,13 +570,6 @@ class DistractionService : AccessibilityService() {
         } catch (_: WindowManager.BadTokenException) {
             // Android can revoke the overlay token as the user disables the service.
         }
-    }
-
-    private fun shieldText(value: String, size: Float, color: String) = TextView(this).apply {
-        text = value
-        textSize = size
-        setTextColor(Color.parseColor(color))
-        gravity = Gravity.CENTER
     }
 
     private fun hideShield() {
