@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_surface">#1B1F27</color>
+    <color name="widget_text">#F5F5F3</color>
+    <color name="widget_muted">#A7ABB7</color>
+    <color name="widget_accent">#D7C5FB</color>
+
+    <string name="widget_focus_title">Focus timer</string>
+    <string name="widget_focus_description">See your running or paused timer and open Focus.</string>
+    <string name="widget_focus_idle">Ready to focus</string>
+    <string name="widget_open_focus">Open Focus</string>
+    <string name="widget_focus_running">Focus in progress</string>
+    <string name="widget_break_running">Break in progress</string>
+    <string name="widget_stopwatch_running">Stopwatch running</string>
+
+    <string name="widget_planner_title">Next study session</string>
+    <string name="widget_planner_description">See the next session in your study plan.</string>
+    <string name="widget_planner_empty">Nothing scheduled</string>
+    <string name="widget_open_planner">Open Planner</string>
+    <string name="widget_planner_schedule">%1$s · %2$s · %3$s</string>
+    <plurals name="widget_duration">
+        <item quantity="one">%d min</item>
+        <item quantity="other">%d min</item>
+    </plurals>
+
+    <style name="Widget.StudyOrbit.Card" parent="">
+        <item name="android:background">@drawable/widget_background</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingBottom">8dp</item>
+    </style>
+    <style name="Widget.StudyOrbit.Heading" parent="">
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">@color/widget_accent</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+    <style name="Widget.StudyOrbit.Value" parent="">
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">@color/widget_text</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+    <style name="Widget.StudyOrbit.Detail" parent="">
+        <item name="android:textColor">@color/widget_muted</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+</resources>

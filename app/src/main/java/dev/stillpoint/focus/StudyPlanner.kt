@@ -35,6 +35,13 @@ internal data class StudySchedule(
     fun on(day: LocalDate): Boolean = if (repeat.isEmpty()) day == date else day >= date && day.dayOfWeek in repeat
 
     fun start(day: LocalDate, zone: ZoneId) = day.atTime(time).atZone(zone).toInstant()
+
+    fun nextStart(now: ZonedDateTime): Instant? {
+        val first = maxOf(date, now.toLocalDate())
+        val after = now.toInstant()
+        return (0L..7L).asSequence().map(first::plusDays).filter(::on)
+            .map { start(it, now.zone) }.firstOrNull { it > after }
+    }
 }
 
 internal fun readSchedules(prefs: SharedPreferences): List<StudySchedule> {
@@ -100,15 +107,13 @@ internal class StudyPlanner(private val context: Context, private val prefs: Sha
         }
         prefs.edit().putString("study_schedules", array.toString()).apply()
         arm()
+        PlannerWidgetProvider.refresh(context, prefs)
     }
 
     fun arm() {
         val now = ZonedDateTime.now()
-        val next = readSchedules(prefs).asSequence().filter { it.remind }.mapNotNull { schedule ->
-            val first = maxOf(schedule.date, now.toLocalDate())
-            (0L..7L).asSequence().map(first::plusDays).filter(schedule::on)
-                .map { schedule.start(it, now.zone) }.firstOrNull { it > now.toInstant() }
-        }.minOrNull()
+        val next = readSchedules(prefs).asSequence().filter { it.remind }
+            .mapNotNull { it.nextStart(now) }.minOrNull()
         val intent = Intent(context, PlannerReceiver::class.java).setAction(REMIND)
         if (next != null) {
             val pending = PendingIntent.getBroadcast(context, 28, intent.putExtra("when", next.toEpochMilli()),
@@ -166,6 +171,8 @@ class PlannerReceiver : BroadcastReceiver() {
         } else {
             store.restoreAlarm()
             store.syncStudyNotification()
+            FocusWidgetProvider.refresh(context, store::sessionSnapshot)
+            PlannerWidgetProvider.refresh(context, store.prefs)
         }
         planner.arm()
     }

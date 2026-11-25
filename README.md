@@ -5,6 +5,7 @@ StudyOrbit is an offline Android app for focus sessions and distraction blocking
 - Run a countdown, stopwatch, or Pomodoro cycle with focus sounds, timer notifications, and a floating timer on supported devices.
 - Set app limits, block short-video feeds, or keep a list of websites and YouTube channels for studying.
 - Plan one-time or repeating study sessions, and review study history and screen time.
+- Add the **Focus timer** or **Next study session** widget from the Android home-screen widget picker under StudyOrbit.
 
 Whole-app protection uses Android Usage Access and Display over other apps. Enable it from the Block tab. Advanced filters for short-video feeds, websites, and YouTube channels use optional Accessibility and depend on what each app exposes. Usage Access is also needed for screen-time reports.
 

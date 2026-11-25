@@ -138,6 +138,10 @@ class FocusStore(private val context: Context) {
 
     fun session(): Session? {
         finishIfDue()
+        return sessionSnapshot()
+    }
+
+    internal fun sessionSnapshot(): Session? {
         if (!prefs.contains("phase")) return null
         val duration = prefs.getLong("duration", 0)
         val running = prefs.getLong("end_wall", 0) != 0L
@@ -183,6 +187,7 @@ class FocusStore(private val context: Context) {
                 .putInt("cycle_focus", minutes).putInt("cycle_break", breakMinutes).putInt("cycle_long", longBreakMinutes)
         }
         if (mode == TimerMode.STOPWATCH) runStopwatch(edit) else runTimer(edit, duration)
+        FocusWidgetProvider.refresh(context, ::sessionSnapshot)
         context.getSystemService(NotificationManager::class.java).cancel(2)
         syncStudyNotification()
     }
@@ -198,6 +203,7 @@ class FocusStore(private val context: Context) {
         } else {
             runTimer(prefs.edit(), active.remaining)
         }
+        FocusWidgetProvider.refresh(context, ::sessionSnapshot)
         syncStudyNotification()
     }
 
@@ -211,6 +217,7 @@ class FocusStore(private val context: Context) {
         }
         edit.apply()
         alarm.cancel(alarmIntent())
+        FocusWidgetProvider.refresh(context, ::sessionSnapshot)
         context.getSystemService(NotificationManager::class.java).cancel(STUDY_NOTIFICATION)
     }
 
@@ -256,6 +263,7 @@ class FocusStore(private val context: Context) {
         } else {
             clearSession(edit).apply()
         }
+        FocusWidgetProvider.refresh(context, ::sessionSnapshot)
         context.getSystemService(NotificationManager::class.java).cancel(STUDY_NOTIFICATION)
         notifyFinished(phase, continuing)
         if (continuing) syncStudyNotification()

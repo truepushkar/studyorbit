@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    style="@style/Widget.StudyOrbit.Card"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextView
+        style="@style/Widget.StudyOrbit.Heading"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/widget_focus_title" />
+
+    <Chronometer
+        android:id="@+id/widget_clock"
+        style="@style/Widget.StudyOrbit.Value"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:fontFeatureSettings="tnum"
+        android:maxLines="1"
+        android:textSize="30sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/widget_value"
+        style="@style/Widget.StudyOrbit.Value"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:fontFeatureSettings="tnum"
+        android:text="@string/widget_focus_idle" />
+
+    <TextView
+        android:id="@+id/widget_detail"
+        style="@style/Widget.StudyOrbit.Detail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="@string/widget_open_focus" />
+</LinearLayout>

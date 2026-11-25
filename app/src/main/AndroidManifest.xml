@@ -38,6 +38,24 @@
             android:excludeFromRecents="true" android:launchMode="singleTask"
             android:taskAffinity="${applicationId}.minitimer" android:supportsPictureInPicture="true" />
         <receiver android:name=".TimerReceiver" android:exported="false" />
+        <receiver
+            android:name=".FocusWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_focus_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_focus_info" />
+        </receiver>
+        <receiver
+            android:name=".PlannerWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_planner_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_planner_info" />
+        </receiver>
         <receiver android:name=".PlannerReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

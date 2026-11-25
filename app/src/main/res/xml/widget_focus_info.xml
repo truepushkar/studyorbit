@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:description="@string/widget_focus_description"
+    android:initialLayout="@layout/widget_focus"
+    android:minWidth="128dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="128dp"
+    android:maxResizeWidth="360dp"
+    android:previewLayout="@layout/widget_focus"
+    android:resizeMode="horizontal"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen"
+    tools:targetApi="31" />
