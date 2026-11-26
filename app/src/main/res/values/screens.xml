@@ -11,7 +11,7 @@
     <string name="strict_mode">Strict Mode</string>
     <string name="blocking_rules_locked_until_this_session_ends">Blocking rules locked until this session ends</string>
     <string name="pin_screen">Pin screen</string>
-    <string name="music_theme">Music &amp; theme</string>
+    <string name="music_background">Music &amp; background</string>
     <string name="float_timer">Float timer</string>
     <string name="android_screen_pinning_is_optional">Android screen pinning is optional</string>
     <string name="study_shortcuts_open_study_list">Open study list</string>
@@ -136,7 +136,11 @@
     <string name="strict_detail">Lock rules until the timer ends</string>
     <string name="break_complete">Break complete</string>
     <string name="theme_settings">Settings</string>
-    <string name="timer_theme">Timer palette</string>
+    <string name="timer_background">Timer background</string>
+    <string name="background_observatory">Observatory</string>
+    <string name="background_forest">Moonlit Forest</string>
+    <string name="background_dusk">Desert Dusk</string>
+    <string name="background_ocean">Deep Ocean</string>
     <string name="return_to_timer">Return to timer</string>
     <string name="go_to_today">Today</string>
     <string name="planner_day_today">%1$s, today</string>
@@ -148,4 +152,13 @@
     <string name="appearance_system">System</string>
     <string name="appearance_light">Light</string>
     <string name="appearance_dark">Dark</string>
+    <string name="background_color">Background color</string>
+    <string name="color_hue">Hue</string>
+    <string name="color_saturation">Saturation</string>
+    <string name="color_brightness">Brightness</string>
+    <string name="reset_background_color">Use default</string>
+    <string name="background_photo">My photo</string>
+    <string name="choose_timer_photo">Choose photo</string>
+    <string name="optimizing_photo">Optimizing photo…</string>
+    <string name="timer_photo_error">Couldn’t open this image. Choose a different photo.</string>
 </resources>

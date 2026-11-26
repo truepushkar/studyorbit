@@ -1,6 +1,14 @@
 package com.studyorbit.app
 
 import android.util.LruCache
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.graphics.asImageBitmap
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import android.view.WindowManager
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
@@ -371,14 +379,13 @@ internal fun OrbitFullScreen(onClose: () -> Unit, content: @Composable () -> Uni
     val topPadding = orbitTopPadding()
     Dialog(
         onDismissRequest = onClose,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
         val lightBars = !androidx.compose.foundation.isSystemInDarkTheme()
         SideEffect {
             window?.let {
                 it.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-                it.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
                 WindowCompat.getInsetsController(it, it.decorView).apply {
                     isAppearanceLightStatusBars = lightBars
                     isAppearanceLightNavigationBars = lightBars
@@ -386,7 +393,7 @@ internal fun OrbitFullScreen(onClose: () -> Unit, content: @Composable () -> Uni
             }
         }
         Surface(Modifier.fillMaxSize(), color = Paper, contentColor = Ink) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Box(Modifier.fillMaxSize().safeDrawingPadding().imePadding(), contentAlignment = Alignment.TopCenter) {
                 CompositionLocalProvider(LocalOrbitTopPadding provides topPadding) {
                     Box(Modifier.widthIn(max = 580.dp).fillMaxWidth()) { content() }
                 }
@@ -406,15 +413,23 @@ internal fun OrbitPageHeader(title: String, onClose: () -> Unit, modifier: Modif
 
 /** Full-screen page with the shared header, edge padding and vertical rhythm. */
 @Composable
-internal fun OrbitScreen(title: String, onClose: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+internal fun OrbitScreen(
+    title: String, onClose: () -> Unit, footer: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
     OrbitFullScreen(onClose) {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                .padding(start = ScreenPadding, end = ScreenPadding, top = orbitTopPadding(), bottom = ScreenPadding),
-            verticalArrangement = Arrangement.spacedBy(Gap.lg)
-        ) {
-            OrbitPageHeader(title, onClose)
-            content()
+        Column(Modifier.fillMaxSize().padding(horizontal = ScreenPadding)) {
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                    .padding(top = orbitTopPadding(), bottom = ScreenPadding),
+                verticalArrangement = Arrangement.spacedBy(Gap.lg)
+            ) {
+                OrbitPageHeader(title, onClose)
+                content()
+            }
+            if (footer != null) {
+                Column(Modifier.fillMaxWidth().padding(top = Gap.sm, bottom = Gap.md)) { footer() }
+            }
         }
     }
 }
@@ -430,33 +445,30 @@ internal fun orbitTopPadding(): Dp = LocalOrbitTopPadding.current
 private val LocalOrbitTopPadding = compositionLocalOf<Dp?> { null }
 
 
-internal val TimerTheme.pageColor: Color
-    @Composable get() = when (this) {
-        TimerTheme.ORBIT -> Paper
-        TimerTheme.FOREST -> colorResource(R.color.orbit_page_forest)
-        TimerTheme.DUSK -> colorResource(R.color.orbit_page_dusk)
-        TimerTheme.OCEAN -> colorResource(R.color.orbit_page_ocean)
-    }
-
 @Composable
 internal fun AtlasPanel(
     @DrawableRes artwork: Int, modifier: Modifier = Modifier, artAlignment: Alignment = Alignment.Center,
-    content: @Composable BoxScope.() -> Unit
+    photo: ImageBitmap? = null, content: @Composable BoxScope.() -> Unit
 ) {
-    val resources = LocalContext.current.resources
-    val illustration = remember(artwork, resources) {
-        atlasIllustrations.get(artwork) ?: ImageBitmap.imageResource(resources, artwork)
-            .also { atlasIllustrations.put(artwork, it) }
-    }
     Box(modifier.fillMaxWidth().clip(CardShape)) {
-        Image(illustration, contentDescription = null, contentScale = ContentScale.Crop,
+        Image(photo ?: orbitArtwork(artwork), contentDescription = null, contentScale = ContentScale.Crop,
             alignment = artAlignment, modifier = Modifier.matchParentSize())
+        if (photo != null) Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = .48f)))
         Box(Modifier.matchParentSize().background(artScrim))
         content()
     }
 }
 
-// The four nodpi illustrations are density-independent. Retain at most two between tab visits.
+@Composable
+private fun orbitArtwork(@DrawableRes artwork: Int): ImageBitmap {
+    val resources = LocalContext.current.resources
+    return remember(artwork, resources) {
+        atlasIllustrations.get(artwork) ?: ImageBitmap.imageResource(resources, artwork)
+            .also { atlasIllustrations.put(artwork, it) }
+    }
+}
+
+// Keep the cache bounded when switching artwork or tabs.
 private val atlasIllustrations = LruCache<Int, ImageBitmap>(2)
 
 @Composable
@@ -465,28 +477,73 @@ internal fun OrbitIcon(@DrawableRes icon: Int, description: String? = null, tint
 }
 
 @Composable
-internal fun ThemePicker(selected: TimerTheme, onSelect: (TimerTheme) -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier.fillMaxWidth().orbitField().padding(horizontal = Gap.lg, vertical = Gap.md),
-        verticalArrangement = Arrangement.spacedBy(Gap.sm)
-    ) {
-        Text(stringResource(R.string.timer_theme), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(Gap.xs)) {
-            TimerTheme.entries.forEach { item ->
-                val chosen = item == selected
-                Column(
-                    Modifier.weight(1f).clip(FieldShape)
-                        .selectable(chosen, role = Role.RadioButton) { onSelect(item) }
-                        .heightIn(min = 48.dp).padding(vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Box(Modifier.size(36.dp).background(item.pageColor, CircleShape)
-                        .border(if (chosen) 2.dp else 1.dp, if (chosen) Accent else Line, CircleShape))
-                    Text(item.label, color = if (chosen) Accent else Muted, fontSize = 13.sp,
-                        fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal)
+internal fun rememberTimerPhoto(revision: Long): ImageBitmap? {
+    val context = LocalContext.current.applicationContext
+    var photo by remember(context) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(context, revision) {
+        photo = if (revision == 0L) null else withContext(Dispatchers.IO) {
+            BitmapFactory.decodeFile(TimerPhoto.file(context).path)?.asImageBitmap()
+        }
+    }
+    return photo
+}
+
+@Composable
+internal fun TimerBackgroundPicker(selected: TimerBackground, photoRevision: Long, onSelect: (TimerBackground) -> Unit) {
+    val context = LocalContext.current.applicationContext
+    val scope = rememberCoroutineScope()
+    var importing by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+    val photo = rememberTimerPhoto(photoRevision)
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null && !importing) {
+            importing = true
+            failed = false
+            scope.launch {
+                try {
+                    TimerPhoto.import(context, uri)
+                    onSelect(TimerBackground.PHOTO)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    failed = true
+                } finally {
+                    importing = false
                 }
             }
         }
+    }
+    Column(
+        Modifier.fillMaxWidth().orbitField().padding(Gap.lg),
+        verticalArrangement = Arrangement.spacedBy(Gap.sm)
+    ) {
+        Text(stringResource(R.string.timer_background), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(Gap.sm)) {
+            TimerBackground.entries.filter { it != TimerBackground.PHOTO || photo != null }.chunked(2).forEach { backgrounds ->
+                Row(horizontalArrangement = Arrangement.spacedBy(Gap.sm)) {
+                    backgrounds.forEach { background ->
+                        val chosen = background == selected
+                        Column(
+                            Modifier.weight(1f).clip(FieldShape)
+                                .background(if (chosen) AccentSurface else OrbitSurface)
+                                .border(if (chosen) 2.dp else 1.dp, if (chosen) Accent else Line, FieldShape)
+                                .selectable(chosen, role = Role.RadioButton) { onSelect(background) }
+                        ) {
+                            Image(if (background == TimerBackground.PHOTO && photo != null) photo else orbitArtwork(background.artwork), contentDescription = null,
+                                modifier = Modifier.fillMaxWidth().aspectRatio(1.7f),
+                                alignment = Alignment.CenterEnd, contentScale = ContentScale.Crop)
+                            Text(stringResource(background.label), Modifier.padding(Gap.sm),
+                                color = if (chosen) Accent else Ink, fontSize = 13.sp,
+                                fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal)
+                        }
+                    }
+                    if (backgrounds.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+        OutlinedButton({ picker.launch("image/*") }, Modifier.fillMaxWidth(), enabled = !importing) {
+            Text(stringResource(if (importing) R.string.optimizing_photo else R.string.choose_timer_photo))
+        }
+        if (failed) Text(stringResource(R.string.timer_photo_error), color = MaterialTheme.colorScheme.error)
     }
 }

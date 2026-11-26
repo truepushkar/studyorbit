@@ -57,7 +57,16 @@ internal fun ContentRulesDialog(
     val invalidBlocked = blockedList.any { websiteHost(it) == null }
     val invalidAllowed = allowedList.any { websiteHost(it) == null }
     val channelList = channels.entries().map(::channelKey).filter { it.isNotBlank() }.toSet()
-    OrbitScreen("Web & YouTube rules", onDismiss) {
+    OrbitScreen("Web & YouTube rules", onDismiss, footer = {
+        if (editable) OrbitButton(stringResource(R.string.save_rules), {
+            onSave(ContentRules(
+                blockedList.mapNotNull(::websiteHost).toSet(), allowedList.mapNotNull(::websiteHost).toSet(),
+                adult, browser, youtube, channelList, if (lock) nextMidnight() else 0
+            ))
+        }, Modifier.fillMaxWidth(), enabled = !invalidBlocked && !invalidAllowed &&
+            (!browser || allowedList.isNotEmpty()) && (!youtube || channelList.isNotEmpty()))
+        else OrbitButton("Close", onDismiss, Modifier.fillMaxWidth())
+    }) {
         Text(when {
             !editable -> "These rules are locked."
             enabled -> "Accessibility is on · rules are enforced"
@@ -117,14 +126,6 @@ internal fun ContentRulesDialog(
             ToggleRule(stringResource(R.string.lock_rules_until_midnight), "Changes are available again after the daily reset.", lock, editable) { lock = it }
         }
         Text(stringResource(R.string.browser_and_video_detection_depends_on_what), color = Muted, fontSize = 13.sp)
-        if (editable) OrbitButton(stringResource(R.string.save_rules), {
-            onSave(ContentRules(
-                blockedList.mapNotNull(::websiteHost).toSet(), allowedList.mapNotNull(::websiteHost).toSet(),
-                adult, browser, youtube, channelList, if (lock) nextMidnight() else 0
-            ))
-        }, Modifier.fillMaxWidth(), enabled = !invalidBlocked && !invalidAllowed &&
-            (!browser || allowedList.isNotEmpty()) && (!youtube || channelList.isNotEmpty()))
-        else OrbitButton("Close", onDismiss, Modifier.fillMaxWidth())
     }
 }
 

@@ -164,7 +164,7 @@ private fun StudyOrbit(
     val subject = ui.subject
     val mode = ui.mode
     val strict = ui.strict
-    val theme = ui.theme
+    val timerBackground = ui.timerBackground
     val sound = ui.sound
     val nudges = ui.nudges
     val result = ui.result
@@ -290,7 +290,7 @@ private fun StudyOrbit(
         lastResult = result
     }
 
-    val background = if (destination == Destination.FOCUS && !settings) theme.pageColor else Paper
+    val background = pageBackground(Paper, ui.backgroundColor)
     MaterialTheme(
         colorScheme = if (androidx.compose.foundation.isSystemInDarkTheme()) darkColorScheme(
             primary = Accent, onPrimary = OnAccent, primaryContainer = AccentSurface, onPrimaryContainer = Ink,
@@ -321,7 +321,8 @@ private fun StudyOrbit(
                                         restMinutes = breakMinutes, rounds = store.rounds, longBreak = store.longBreakMinutes,
                                         phase = active?.phase ?: if (mode == TimerMode.TIMER) phase else Phase.FOCUS,
                                         minutes = if (mode != TimerMode.TIMER || phase == Phase.FOCUS) focusMinutes else breakMinutes,
-                                        mode = active?.mode ?: mode, strict = active?.strict ?: strict, theme = theme,
+                                        mode = active?.mode ?: mode, strict = active?.strict ?: strict, timerBackground = timerBackground,
+                                        timerPhotoRevision = ui.timerPhotoRevision,
                                         sound = sound,
                                         streak = if (nudges) remember(history, today) { studyStreak(history, today) } else null,
                                         subject = subject,
@@ -349,8 +350,8 @@ private fun StudyOrbit(
                                     },
                                     onPause = { pulse(); store.pauseOrResume() },
                                     onEnd = { endConfirmation = true },
-                                    onTheme = {
-                                        store.prefs.edit().putInt("timer_theme", it.ordinal).apply()
+                                    onBackground = {
+                                        store.timerBackground = it
                                     },
                                     onSound = {
                                         store.prefs.edit().putString("music_track", it.name).apply()
@@ -463,18 +464,20 @@ private fun StudyOrbit(
         )
 
         if (settings) SettingsDialog(
-            store, focusMinutes, breakMinutes, goal, theme, sound, nudges,
+            store, focusMinutes, breakMinutes, goal, timerBackground, ui.timerPhotoRevision, ui.backgroundColor, sound, nudges,
             onDismiss = { settings = false },
             onNotifications = {
                 openSettings(Settings.ACTION_APP_NOTIFICATION_SETTINGS, Bundle().apply {
                     putString(Settings.EXTRA_APP_PACKAGE, context.packageName)
                 })
             },
-            onSave = { focus, rest, target, nextTheme, nextSound, nextNudges, appearance ->
+            onSave = { focus, rest, target, nextBackground, nextSound, nextNudges, appearance, color ->
                 store.focusMinutes = focus
                 store.breakMinutes = rest
                 store.goalMinutes = target
-                store.prefs.edit().putInt("timer_theme", nextTheme.ordinal).putString("music_track", nextSound.name)
+                store.backgroundColor = color
+                store.timerBackground = nextBackground
+                store.prefs.edit().putString("music_track", nextSound.name)
                     .putBoolean("focus_nudges", nextNudges).apply()
                 syncAudio()
                 settings = false
@@ -602,8 +605,8 @@ private fun BottomTabs(current: Destination, onSelect: (Destination) -> Unit) {
 @Composable
 private fun SettingsDialog(
     store: FocusStore, focus: Int, rest: Int, goal: Int,
-    theme: TimerTheme, sound: Soundscape, nudges: Boolean, onDismiss: () -> Unit,
-    onNotifications: () -> Unit, onSave: (Int, Int, Int, TimerTheme, Soundscape, Boolean, AppAppearance) -> Unit
+    timerBackground: TimerBackground, photoRevision: Long, backgroundColor: Int?, sound: Soundscape, nudges: Boolean, onDismiss: () -> Unit,
+    onNotifications: () -> Unit, onSave: (Int, Int, Int, TimerBackground, Soundscape, Boolean, AppAppearance, Int?) -> Unit
 ) {
     var focusText by rememberSaveable { mutableStateOf(focus.toString()) }
     var restText by rememberSaveable { mutableStateOf(rest.toString()) }
@@ -611,7 +614,8 @@ private fun SettingsDialog(
     var longBreak by rememberSaveable { mutableStateOf(store.longBreakMinutes.toString()) }
     var rounds by rememberSaveable { mutableStateOf(store.rounds.toString()) }
     var appearance by rememberSaveable { mutableStateOf(store.appearance) }
-    var selectedTheme by rememberSaveable { mutableStateOf(theme) }
+    var selectedColor by rememberSaveable { mutableStateOf(backgroundColor) }
+    var selectedBackground by rememberSaveable { mutableStateOf(timerBackground) }
     var selectedSound by rememberSaveable { mutableStateOf(sound) }
     var showNudges by rememberSaveable { mutableStateOf(nudges) }
     val a = focusText.toIntOrNull() ?: 0
@@ -619,7 +623,13 @@ private fun SettingsDialog(
     val c = goalText.toIntOrNull() ?: 0
     val d = longBreak.toIntOrNull() ?: 0
     val e = rounds.toIntOrNull() ?: 0
-    OrbitScreen(stringResource(R.string.study_preferences), onDismiss) {
+    OrbitScreen(stringResource(R.string.study_preferences), onDismiss, footer = {
+        OrbitButton(stringResource(R.string.save_settings), {
+            store.longBreakMinutes = d
+            store.rounds = e
+            onSave(a, b, c, selectedBackground, selectedSound, showNudges, appearance, selectedColor)
+        }, Modifier.fillMaxWidth(), enabled = a in 1..180 && b in 1..180 && c in 1..720 && d in 1..180 && e in 2..12)
+    }) {
         Text(stringResource(R.string.saved_on_this_device_no_account_needed), color = Muted, fontSize = 13.sp)
         SectionTitle("Timer", Modifier.padding(top = Gap.sm))
         Column(verticalArrangement = Arrangement.spacedBy(Gap.sm)) {
@@ -637,18 +647,14 @@ private fun SettingsDialog(
             OrbitSegmented(AppAppearance.entries.map { stringResource(it.label) }, appearance.ordinal,
                 onSelect = { appearance = AppAppearance.entries[it] })
         }
-        ThemePicker(selectedTheme, onSelect = { selectedTheme = it })
+        PageColorPicker(selectedColor) { selectedColor = it }
+        TimerBackgroundPicker(selectedBackground, photoRevision, onSelect = { selectedBackground = it })
         SectionTitle("Reminders", Modifier.padding(top = Gap.sm))
         Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
             ToggleRule(stringResource(R.string.companion_nudges), "", showNudges) { showNudges = it }
         }
         OrbitButton(stringResource(R.string.notification_settings), onNotifications, Modifier.fillMaxWidth(), primary = false,
             container = OrbitSurface)
-        OrbitButton(stringResource(R.string.save_settings), {
-            store.longBreakMinutes = d
-            store.rounds = e
-            onSave(a, b, c, selectedTheme, selectedSound, showNudges, appearance)
-        }, Modifier.fillMaxWidth(), enabled = a in 1..180 && b in 1..180 && c in 1..720 && d in 1..180 && e in 2..12)
     }
 }
 

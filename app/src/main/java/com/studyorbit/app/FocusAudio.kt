@@ -32,10 +32,6 @@ internal enum class Soundscape(val label: String, val digest: String = "") {
 
 }
 
-internal enum class TimerTheme(val label: String) {
-    ORBIT("Orbit"), FOREST("Forest"), DUSK("Dusk"), OCEAN("Ocean")
-}
-
 internal fun FocusStore.soundscape() = Soundscape.entries.firstOrNull { it.name == prefs.getString("music_track", null) } ?: Soundscape.OFF
 
 class FocusAudio : Service() {

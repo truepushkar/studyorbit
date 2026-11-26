@@ -36,7 +36,7 @@ import kotlinx.coroutines.delay
 internal data class FocusUiState(
     val active: Session?, val result: Int, val resultTime: Long, val resultKind: FocusResult, val phase: Phase, val minutes: Int, val subject: String, val goal: Int, val total: Int,
     val restMinutes: Int, val rounds: Int, val longBreak: Int,
-    val mode: TimerMode, val strict: Boolean, val theme: TimerTheme, val sound: Soundscape, val streak: Int?,
+    val mode: TimerMode, val strict: Boolean, val timerBackground: TimerBackground, val timerPhotoRevision: Long, val sound: Soundscape, val streak: Int?,
     val recentSubjects: List<String>, val lastSession: StudyLog?
 )
 
@@ -47,7 +47,7 @@ internal fun FocusPage(
     onMode: (TimerMode) -> Unit, onStrict: (Boolean) -> Unit, onPin: () -> Unit,
     onPhase: (Phase) -> Unit, onMinutes: (Int) -> Unit, onSubject: (String) -> Unit,
     onStart: () -> Unit, onPause: () -> Unit, onEnd: () -> Unit, onGoal: () -> Unit, onReset: () -> Unit,
-    onTheme: (TimerTheme) -> Unit, onSound: (Soundscape) -> Unit, onMiniTimer: (() -> Unit)?,
+    onBackground: (TimerBackground) -> Unit, onSound: (Soundscape) -> Unit, onMiniTimer: (() -> Unit)?,
     shortcuts: @Composable () -> Unit
 ) = with(state) {
     var sheet by rememberSaveable { mutableStateOf<String?>(null) }
@@ -81,7 +81,7 @@ internal fun FocusPage(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            SessionPoster(active, result, resultTime, resultKind, phase, mode, minutes,
+            SessionPoster(timerBackground, timerPhotoRevision, active, result, resultTime, resultKind, phase, mode, minutes,
                 restMinutes, rounds, posterPadding, onEdit = if (ready && !stopwatch) ({ sheet = "duration" }) else null,
                 onPhase = if (ready && mode == TimerMode.TIMER) onPhase else null,
                 subjectChip = if (ready && phase == Phase.FOCUS) ({
@@ -153,7 +153,7 @@ internal fun FocusPage(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(Gap.md)) {
                     if (active.strict) OrbitButton(stringResource(R.string.pin_screen), onPin, Modifier.weight(1f), primary = false, container = OrbitSurface)
-                    OrbitButton(stringResource(R.string.music_theme), { sheet = "atmosphere" }, Modifier.weight(1f), primary = false, container = OrbitSurface)
+                    OrbitButton(stringResource(R.string.music_background), { sheet = "atmosphere" }, Modifier.weight(1f), primary = false, container = OrbitSurface)
                     if (!active.strict && onMiniTimer != null) {
                         OrbitButton(stringResource(R.string.float_timer), onMiniTimer, Modifier.weight(1f), primary = false, container = OrbitSurface)
                     }
@@ -195,7 +195,7 @@ internal fun FocusPage(
         OrbitHeading(stringResource(R.string.set_the_atmosphere), level = HeadingLevel.Sheet)
         Text(stringResource(R.string.changes_apply_immediately_to_your_session), color = Muted)
         MusicPicker(sound, onSound)
-        ThemePicker(theme, onTheme)
+        TimerBackgroundPicker(timerBackground, timerPhotoRevision, onBackground)
         OrbitButton(stringResource(R.string.done), { sheet = null }, Modifier.fillMaxWidth())
     }
     if (sheet == "shortcuts" && active != null) OrbitSheet({ sheet = null }) {
@@ -249,6 +249,7 @@ internal fun rememberDisplayedTime(active: Session?): State<Long?> {
 
 @Composable
 private fun SessionPoster(
+    background: TimerBackground, photoRevision: Long,
     active: Session?, result: Int, resultTime: Long, resultKind: FocusResult, phase: Phase,
     mode: TimerMode, minutes: Int, restMinutes: Int, rounds: Int,
     posterPadding: androidx.compose.ui.unit.Dp,
@@ -268,7 +269,8 @@ private fun SessionPoster(
     val savedSession = result > 0 && resultKind != FocusResult.BREAK && resultKind != FocusResult.ENDED
     val elapsed = if (active != null && !stopwatch && active.duration > 0)
         (1f - display.toFloat() / active.duration).coerceIn(0f, 1f) else 0f
-    AtlasPanel(R.drawable.atlas_focus) {
+    val photo = if (background == TimerBackground.PHOTO) rememberTimerPhoto(photoRevision) else null
+    AtlasPanel(background.artwork, artAlignment = Alignment.CenterEnd, photo = photo) {
         Column(Modifier.fillMaxWidth().heightIn(min = 266.dp).padding(horizontal = 20.dp, vertical = posterPadding)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {

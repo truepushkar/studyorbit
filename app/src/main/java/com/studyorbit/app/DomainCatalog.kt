@@ -17,7 +17,7 @@ import kotlinx.coroutines.withContext
 
 internal object DomainCatalog {
     private const val DOWNLOAD_URL =
-        "https://github.com/truepushkar/studyorbit/releases/download/v2.1/StudyOrbit-domain-catalog.zip"
+        "https://github.com/truepushkar/studyorbit/releases/download/v2.2/StudyOrbit-domain-catalog.zip"
     private const val MAX_BYTES = 10 * 1024 * 1024
     private val downloadLock = Mutex()
     @Volatile private var ready: Boolean? = null

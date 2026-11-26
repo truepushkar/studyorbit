@@ -76,6 +76,30 @@ class FocusStore(private val context: Context) {
     var breakMinutes: Int
         get() = prefs.getInt("break_minutes", 5)
         set(value) { prefs.edit().putInt("break_minutes", value).apply() }
+    internal var backgroundColor: Int?
+        get() = if (prefs.contains("page_background_color")) prefs.getInt("page_background_color", 0) else null
+        set(value) {
+            val edit = prefs.edit()
+            if (value == null) edit.remove("page_background_color") else edit.putInt("page_background_color", value)
+            edit.apply()
+        }
+
+    internal val timerPhotoRevision: Long get() = prefs.getLong("timer_photo_revision", 0L)
+
+    internal var timerBackground: TimerBackground
+        get() {
+            val saved = prefs.getString("timer_background", null)
+            if (saved != null) return TimerBackground.entries.firstOrNull { it.name == saved }
+                ?: TimerBackground.OBSERVATORY
+            return when (prefs.getInt("timer_theme", 0)) {
+                1 -> TimerBackground.FOREST
+                2 -> TimerBackground.DUSK
+                3 -> TimerBackground.OCEAN
+                else -> TimerBackground.OBSERVATORY
+            }
+        }
+        set(value) { prefs.edit().putString("timer_background", value.name).apply() }
+
     internal var appearance: AppAppearance
         get() = AppAppearance.entries.firstOrNull { it.name == prefs.getString("app_appearance", null) } ?: AppAppearance.SYSTEM
         set(value) { prefs.edit().putString("app_appearance", value.name).apply() }

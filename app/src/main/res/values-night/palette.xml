@@ -16,7 +16,4 @@
     <color name="orbit_nav_content">#C6C5DD</color>
     <color name="orbit_nav_pill">#312E50</color>
     <color name="orbit_nav_pill_content">#C5BCFF</color>
-    <color name="orbit_page_forest">#192C26</color>
-    <color name="orbit_page_dusk">#302333</color>
-    <color name="orbit_page_ocean">#1B2937</color>
 </resources>

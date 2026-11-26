@@ -18,7 +18,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 internal data class StudyUiState(
     val active: Session?, val history: List<StudyLog>, val today: LocalDate,
     val focusMinutes: Int, val breakMinutes: Int, val goal: Int, val subject: String,
-    val mode: TimerMode, val strict: Boolean, val theme: TimerTheme, val sound: Soundscape,
+    val mode: TimerMode, val strict: Boolean, val timerBackground: TimerBackground, val sound: Soundscape,
+    val backgroundColor: Int?, val timerPhotoRevision: Long,
     val nudges: Boolean, val result: Int, val resultTime: Long, val resultKind: FocusResult
 )
 
@@ -33,8 +34,8 @@ internal class StudyViewModel(application: Application, private val saved: Saved
         store.goalMinutes, store.subject,
         TimerMode.entries.getOrElse(store.prefs.getInt("timer_mode", 0)) { TimerMode.TIMER },
         store.prefs.getBoolean("strict_preference", false),
-        TimerTheme.entries.getOrElse(store.prefs.getInt("timer_theme", 0)) { TimerTheme.ORBIT },
-        store.soundscape(), store.prefs.getBoolean("focus_nudges", true),
+        store.timerBackground,
+        store.soundscape(), store.backgroundColor, store.timerPhotoRevision, store.prefs.getBoolean("focus_nudges", true),
         saved["result"] ?: -1, saved["resultTime"] ?: 0L, saved["resultKind"] ?: FocusResult.FOCUS
     )
 
