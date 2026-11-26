@@ -54,7 +54,7 @@ internal fun FocusPage(
     val ready = active == null && result < 0
     val completed = active == null && result >= 0
     val stopwatch = mode == TimerMode.STOPWATCH
-    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = ScreenPadding)) {
         val posterPadding = (maxHeight * .05f).coerceIn(16.dp, 42.dp)
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 6.dp),
@@ -75,7 +75,7 @@ internal fun FocusPage(
                     }
                     Box(Modifier.fillMaxWidth().heightIn(min = 54.dp).clip(FieldShape).background(AccentSurface),
                         contentAlignment = Alignment.Center) {
-                        Text(state, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Accent,
+                        Text(state, Modifier.padding(horizontal = Gap.md, vertical = Gap.sm), color = Accent,
                             fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
                     }
                 }
@@ -85,67 +85,73 @@ internal fun FocusPage(
                 restMinutes, rounds, posterPadding, onEdit = if (ready && !stopwatch) ({ sheet = "duration" }) else null,
                 onPhase = if (ready && mode == TimerMode.TIMER) onPhase else null,
                 subjectChip = if (ready && phase == Phase.FOCUS) ({
-                    OutlinedButton({ sheet = "subject" }, colors = ButtonDefaults.outlinedButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) {
-                        Text(subject.ifBlank { stringResource(R.string.subject_prompt) }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    ArtButton({ sheet = "subject" }, outlined = true, contentColor = ArtText) {
+                        ArtLabel(subject.ifBlank { stringResource(R.string.subject_prompt) })
                     }
                 }) else null,
                 onStart = if (ready) onStart else null, onPause = onPause, onEnd = onEnd)
 
             if (completed) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Gap.lg))
                 OrbitHeading(when (resultKind) {
                     FocusResult.BREAK -> "Break complete."
                     FocusResult.CYCLE -> "Pomodoro complete."
                     FocusResult.ENDED -> "A fresh start is always here."
                     else -> "Nice work."
-                }, size = 24)
+                }, level = HeadingLevel.Sheet)
                 Text(when (resultKind) {
                     FocusResult.BREAK -> "Ready for another study session?"
                     FocusResult.ENDED -> "Only completed countdown rounds count."
                     FocusResult.STOPWATCH -> "Full stopwatch minutes count toward your goal."
                     else -> "Focus time counts. Breaks stay separate."
                 },
-                    color = Muted, fontSize = 13.sp, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(40.dp))
+                    color = Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Gap.xs))
+                Spacer(Modifier.height(Gap.xl))
                 OrbitButton(stringResource(R.string.view_progress), onGoal, Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-                OrbitButton(stringResource(R.string.back_to_focus), onReset, Modifier.fillMaxWidth(), primary = false, rounded = false)
-                Spacer(Modifier.height(20.dp))
-                Text("Today’s goal · $total / $goal min", color = Accent, modifier = Modifier.padding(8.dp))
+                Spacer(Modifier.height(Gap.sm))
+                OrbitButton(stringResource(R.string.back_to_focus), onReset, Modifier.fillMaxWidth(), primary = false)
+                Spacer(Modifier.height(Gap.lg))
+                Text("Today’s goal · $total / $goal min", color = Accent, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(Gap.sm))
                 return@Column
             }
 
-            Spacer(Modifier.height(if (ready) 14.dp else 24.dp))
+            Spacer(Modifier.height(if (ready) Gap.lg else Gap.xl))
             if (ready) {
                 if (phase == Phase.FOCUS && recentSubjects.isNotEmpty()) {
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Gap.sm)) {
                         recentSubjects.forEach { name ->
-                            AssistChip(onClick = { onSubject(name); onStart() }, label = { Text(name) },
-                                leadingIcon = { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_play), stringResource(R.string.start_session), Modifier.size(16.dp)) })
+                            OrbitChip(name, { onSubject(name); onStart() }, onClickLabel = stringResource(R.string.start_session),
+                                icon = R.drawable.ic_play)
                         }
                     }
+                    Spacer(Modifier.height(Gap.sm))
                 }
-                if (!stopwatch && phase == Phase.FOCUS) ToggleRule(stringResource(R.string.strict_mode), stringResource(R.string.strict_detail), strict, onChange = onStrict)
-                Spacer(Modifier.height(12.dp))
+                if (!stopwatch && phase == Phase.FOCUS) {
+                    Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+                        ToggleRule(stringResource(R.string.strict_mode), stringResource(R.string.strict_detail), strict, onChange = onStrict)
+                    }
+                    Spacer(Modifier.height(Gap.md))
+                }
                 FocusGoal(total, goal, onGoal)
                 val nudge = when {
                     mode == TimerMode.POMODORO -> "$rounds × $minutes min · Long break after round $rounds ($longBreak min)"
                     streak == null -> ""
-                    streak >= 2 -> "✦  $streak study days in a row. Keep your orbit."
-                    total >= goal -> "✦  You reached today’s goal."
+                    streak >= 2 -> "$streak study days in a row. Keep your orbit."
+                    total >= goal -> "You reached today’s goal."
                     lastSession != null -> stringResource(R.string.last_session, lastSession.subject.ifBlank { Phase.FOCUS.label }, lastSession.minutes)
                     else -> ""
                 }
-                if (nudge.isNotEmpty()) Text(nudge, Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
-                    color = Muted, fontSize = 13.sp, lineHeight = 15.sp)
+                if (nudge.isNotEmpty()) Text(nudge, Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = Gap.md),
+                    color = Muted, fontSize = 13.sp)
             } else if (active != null) {
                 if (active.strict) {
                     Text(stringResource(R.string.blocking_rules_locked_until_this_session_ends),
-                        Modifier.fillMaxWidth().background(AccentSurface, FieldShape).padding(17.dp),
+                        Modifier.fillMaxWidth().background(AccentSurface, FieldShape).padding(Gap.lg),
                         color = Accent, textAlign = TextAlign.Center, fontSize = 13.sp)
+                    Spacer(Modifier.height(Gap.lg))
                 }
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Gap.md)) {
                     if (active.strict) OrbitButton(stringResource(R.string.pin_screen), onPin, Modifier.weight(1f), primary = false, container = OrbitSurface)
                     OrbitButton(stringResource(R.string.music_theme), { sheet = "atmosphere" }, Modifier.weight(1f), primary = false, container = OrbitSurface)
                     if (!active.strict && onMiniTimer != null) {
@@ -153,10 +159,10 @@ internal fun FocusPage(
                     }
                 }
                 if (active.strict) {
-                    Text(stringResource(R.string.android_screen_pinning_is_optional), Modifier.padding(top = 15.dp), color = Muted, fontSize = 13.sp)
+                    Text(stringResource(R.string.android_screen_pinning_is_optional), Modifier.padding(top = Gap.lg), color = Muted, fontSize = 13.sp)
                 } else {
-                    TextButton({ sheet = "shortcuts" }, Modifier.align(Alignment.Start).padding(start = 20.dp, top = 4.dp)) {
-                        Text(stringResource(R.string.study_shortcuts_open_study_list), color = Accent, fontSize = 14.sp)
+                    TextButton({ sheet = "shortcuts" }, Modifier.align(Alignment.Start).heightIn(min = 48.dp)) {
+                        Text(stringResource(R.string.study_shortcuts_open_study_list), color = Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -167,13 +173,12 @@ internal fun FocusPage(
         var length by rememberSaveable { mutableStateOf(minutes.toString()) }
         val parsed = length.toIntOrNull()
         OrbitSheet({ sheet = null }) {
-            OrbitHeading(if (phase == Phase.BREAK) "Make time for a break" else "Make time for focus", size = 26)
-            Spacer(Modifier.height(12.dp))
+            OrbitHeading(if (phase == Phase.BREAK) "Make time for a break" else "Make time for focus", level = HeadingLevel.Sheet)
             OrbitField("${phase.label} duration", length, { length = it.filter(Char::isDigit).take(3) },
                 Modifier.fillMaxWidth(), suffix = "min", numeric = true, error = parsed !in 1..180,
-                errorText = stringResource(R.string.error_range, 1, 180))
-            Text(stringResource(R.string.choose_a_duration_that_feels_achievable), Modifier.padding(top = 9.dp), color = Muted)
-            Spacer(Modifier.height(30.dp))
+                errorText = stringResource(R.string.error_range, 1, 180),
+                helper = stringResource(R.string.choose_a_duration_that_feels_achievable))
+            Spacer(Modifier.height(Gap.xs))
             OrbitButton(stringResource(R.string.save_duration), { parsed?.let(onMinutes); sheet = null },
                 Modifier.fillMaxWidth(), enabled = parsed in 1..180)
         }
@@ -181,20 +186,20 @@ internal fun FocusPage(
     if (sheet == "subject" && ready) {
         var task by rememberSaveable { mutableStateOf(subject) }
         OrbitSheet({ sheet = null }) {
-            OrbitHeading(stringResource(R.string.subject_prompt), size = 24)
+            OrbitHeading(stringResource(R.string.subject_prompt), level = HeadingLevel.Sheet)
             OrbitField(stringResource(R.string.study_subject), task, { task = it.take(70) }, Modifier.fillMaxWidth())
             OrbitButton(stringResource(R.string.save_subject), { onSubject(task.trim()); sheet = null }, Modifier.fillMaxWidth())
         }
     }
     if (sheet == "atmosphere" && active != null) OrbitSheet({ sheet = null }) {
-        OrbitHeading(stringResource(R.string.set_the_atmosphere), size = 26)
+        OrbitHeading(stringResource(R.string.set_the_atmosphere), level = HeadingLevel.Sheet)
         Text(stringResource(R.string.changes_apply_immediately_to_your_session), color = Muted)
         MusicPicker(sound, onSound)
         ThemePicker(theme, onTheme)
         OrbitButton(stringResource(R.string.done), { sheet = null }, Modifier.fillMaxWidth())
     }
     if (sheet == "shortcuts" && active != null) OrbitSheet({ sheet = null }) {
-        OrbitHeading(stringResource(R.string.your_study_list), size = 26)
+        OrbitHeading(stringResource(R.string.your_study_list), level = HeadingLevel.Sheet)
         Text(stringResource(R.string.saved_sites_and_channels_ready_when_you), color = Muted)
         shortcuts()
         OrbitButton(stringResource(R.string.back_to_session), { sheet = null }, Modifier.fillMaxWidth())
@@ -207,31 +212,18 @@ internal fun OrbitSheet(onClose: () -> Unit, content: @Composable ColumnScope.()
     ModalBottomSheet(
         onDismissRequest = onClose, containerColor = Paper, contentColor = Ink,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        shape = SheetShape
     ) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp), content = content
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = ScreenPadding, end = ScreenPadding, bottom = ScreenPadding),
+            verticalArrangement = Arrangement.spacedBy(Gap.md), content = content
         )
     }
 }
 
 @Composable
 private fun FocusModeBar(mode: TimerMode, onMode: (TimerMode) -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(FieldShape).background(OrbitSurface).selectableGroup().padding(3.dp)) {
-        TimerMode.entries.forEach { option ->
-            val selected = mode == option
-            val fill by animateColorAsState(if (selected) Accent else OrbitSurface, tween(160), label = "Mode highlight")
-            Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(FieldShape)
-                .background(fill)
-                .selectable(selected, role = Role.Tab) { onMode(option) }.padding(horizontal = 3.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(option.label, color = if (selected) OnAccent else Muted, fontSize = 13.sp,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, textAlign = TextAlign.Center)
-            }
-        }
-    }
+    OrbitSegmented(TimerMode.entries.map { it.label }, mode.ordinal, { onMode(TimerMode.entries[it]) }, role = Role.Tab)
 }
 
 internal enum class FocusResult { FOCUS, BREAK, CYCLE, STOPWATCH, ENDED }
@@ -272,16 +264,12 @@ private fun SessionPoster(
         else -> minutes * MINUTE
     }
     val digits = timerDigits(display, if (result >= 0) resultKind == FocusResult.STOPWATCH else stopwatch)
-    val white = androidx.compose.ui.graphics.Color.White
+    val white = ArtText
     val savedSession = result > 0 && resultKind != FocusResult.BREAK && resultKind != FocusResult.ENDED
     val elapsed = if (active != null && !stopwatch && active.duration > 0)
         (1f - display.toFloat() / active.duration).coerceIn(0f, 1f) else 0f
     AtlasPanel(R.drawable.atlas_focus) {
-        val scrim = androidx.compose.ui.graphics.Brush.horizontalGradient(
-            listOf(androidx.compose.ui.graphics.Color(0xE9171632), androidx.compose.ui.graphics.Color(0x66171632),
-                androidx.compose.ui.graphics.Color.Transparent)
-        )
-        Column(Modifier.fillMaxWidth().heightIn(min = 266.dp).background(scrim).padding(horizontal = 20.dp, vertical = posterPadding)) {
+        Column(Modifier.fillMaxWidth().heightIn(min = 266.dp).padding(horizontal = 20.dp, vertical = posterPadding)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (onPhase != null) {
@@ -291,7 +279,7 @@ private fun SessionPoster(
                             Box(Modifier.clip(CircleShape).background(if (selected) white else androidx.compose.ui.graphics.Color.Transparent)
                                 .selectable(selected, role = Role.Tab) { onPhase(option) }
                                 .heightIn(min = 48.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-                                Text(option.label, color = if (selected) androidx.compose.ui.graphics.Color(0xFF211E38) else white, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Text(option.label, color = if (selected) ArtInk else white, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -317,7 +305,7 @@ private fun SessionPoster(
                     modifier = Modifier.size(48.dp)
                 )
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Gap.md))
             Column(Modifier.then(if (onEdit != null) Modifier.clickable(onClickLabel = stringResource(R.string.edit_duration), onClick = onEdit) else Modifier)) {
                 Text(digits, color = white, fontSize = if (digits.length > 5) 44.sp else 60.sp,
                     lineHeight = 66.sp, letterSpacing = (-2).sp, fontWeight = FontWeight.SemiBold,
@@ -335,14 +323,10 @@ private fun SessionPoster(
                     else -> stringResource(R.string.remaining_time)
                 }, color = white, fontSize = 14.sp)
             }
-            val progressWidth = Modifier.fillMaxWidth(.56f).height(4.dp).clip(CircleShape)
-            Spacer(Modifier.height(12.dp))
-            if (!stopwatch && result < 0) {
-                LinearProgressIndicator(progress = { elapsed }, modifier = progressWidth,
-                    color = androidx.compose.ui.graphics.Color(0xFFFFBCAC), trackColor = white.copy(alpha = .26f),
-                    drawStopIndicator = {})
-            } else {
-                Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Gap.md))
+            if (active?.running == true && !stopwatch && result < 0) {
+                LinearProgressIndicator(progress = { elapsed }, modifier = Modifier.fillMaxWidth(.56f).height(4.dp).clip(CircleShape),
+                    color = ArtCoral, trackColor = ArtTrack, drawStopIndicator = {})
             }
             subjectChip?.invoke()
             val action = onStart ?: onPause.takeIf { active != null && !active.strict }
@@ -355,45 +339,38 @@ private fun SessionPoster(
                     phase == Phase.BREAK -> stringResource(R.string.start_break)
                     else -> stringResource(R.string.start_focusing)
                 }
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = action, shape = CircleShape, modifier = Modifier.widthIn(min = 132.dp).heightIn(min = 48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFFFBCAC), contentColor = androidx.compose.ui.graphics.Color(0xFF211E38)),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                Spacer(Modifier.height(Gap.lg))
+                Row(horizontalArrangement = Arrangement.spacedBy(Gap.sm), verticalAlignment = Alignment.CenterVertically) {
+                    ArtButton(action, Modifier.widthIn(min = 132.dp)) {
                         Icon(androidx.compose.ui.res.painterResource(
                             if (active?.running == true) R.drawable.ic_rail_pause else R.drawable.ic_play
                         ), null, Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(Gap.sm))
                         Crossfade(label, animationSpec = tween(130), label = "Session action") {
-                            Text(it, fontWeight = FontWeight.Bold)
+                            Text(it, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                     if (active != null) {
-                        FilledTonalButton(onClick = onEnd, modifier = Modifier.heightIn(min = 48.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = androidx.compose.ui.graphics.Color(0xFF383254), contentColor = white
-                            ), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
-                            Text(if (mode == TimerMode.POMODORO) "End" else "Finish")
+                        ArtButton(onEnd, container = ArtSlate, contentColor = ArtText) {
+                            ArtLabel(if (mode == TimerMode.POMODORO) "End" else "Finish")
                         }
                     }
                 }
             }
-
         }
     }
 }
 
 @Composable
 private fun FocusGoal(total: Int, goal: Int, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(CardShape).background(AccentSurface)
-        .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp)) {
+    Panel(tone = PanelTone.Tinted, onClick = onClick, contentPadding = PaddingValues(horizontal = Gap.lg, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.today_s_goal), Modifier.weight(1f), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Text("$total / $goal min", Modifier.padding(end = 2.dp), color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text("$total / $goal min", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(Gap.md))
         LinearProgressIndicator(progress = { (total.toFloat() / goal).coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
+            modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
             color = Accent, trackColor = OrbitTrack, drawStopIndicator = {})
     }
 }

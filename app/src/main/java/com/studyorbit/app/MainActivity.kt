@@ -5,6 +5,7 @@ import android.app.ActivityManager
 import android.app.AlarmManager
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
+import android.content.res.Configuration
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -62,12 +63,26 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 
+internal enum class AppAppearance(val label: Int, val nightMode: Int) {
+    SYSTEM(R.string.appearance_system, Configuration.UI_MODE_NIGHT_UNDEFINED),
+    LIGHT(R.string.appearance_light, Configuration.UI_MODE_NIGHT_NO),
+    DARK(R.string.appearance_dark, Configuration.UI_MODE_NIGHT_YES)
+}
+
 class MainActivity : ComponentActivity() {
     private val model by viewModels<StudyViewModel>()
     private var resumeCount by mutableIntStateOf(0)
     private val routeRequests = Channel<Destination>(Channel.CONFLATED)
     private val routes = routeRequests.receiveAsFlow()
     private var pinRequested = false
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase)
+        val appearance = FocusStore(newBase).appearance
+        if (appearance != AppAppearance.SYSTEM) {
+            applyOverrideConfiguration(Configuration().apply { uiMode = appearance.nightMode })
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,7 +93,7 @@ class MainActivity : ComponentActivity() {
         val apps = DeviceApps(this)
         pinRequested = savedInstanceState?.getBoolean("focus_pin") == true
         val initialDestination = routeDestination(intent) ?: Destination.FOCUS
-        setContent { StudyOrbit(model, apps, resumeCount, initialDestination, routes, ::pin, ::releasePin) }
+        setContent { StudyOrbit(model, apps, resumeCount, initialDestination, routes, ::pin, ::releasePin, ::recreate) }
     }
 
     override fun onResume() {
@@ -133,7 +148,7 @@ private enum class Destination(val label: String, val icon: Int, val selectedIco
 @Composable
 private fun StudyOrbit(
     model: StudyViewModel, apps: DeviceApps, resumes: Int, initialDestination: Destination, routes: Flow<Destination>,
-    onPin: () -> Unit, onReleasePin: () -> Unit
+    onPin: () -> Unit, onReleasePin: () -> Unit, onAppearanceChanged: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -280,13 +295,17 @@ private fun StudyOrbit(
         colorScheme = if (androidx.compose.foundation.isSystemInDarkTheme()) darkColorScheme(
             primary = Accent, onPrimary = OnAccent, primaryContainer = AccentSurface, onPrimaryContainer = Ink,
             background = Paper, onBackground = Ink, surface = OrbitSurface, onSurface = Ink,
-            surfaceVariant = Night, onSurfaceVariant = Muted, outline = Line, outlineVariant = Line
+            surfaceVariant = Night, onSurfaceVariant = Muted, outline = Line, outlineVariant = Line,
+            surfaceContainerLowest = OrbitSurface, surfaceContainerLow = OrbitSurface, surfaceContainer = OrbitSurface,
+            surfaceContainerHigh = OrbitSurface, surfaceContainerHighest = Night
         ) else lightColorScheme(
             primary = Accent, onPrimary = OnAccent, primaryContainer = AccentSurface, onPrimaryContainer = Accent,
             background = Paper, onBackground = Ink, surface = OrbitSurface, onSurface = Ink,
-            surfaceVariant = Night, onSurfaceVariant = Muted, outline = Line, outlineVariant = Line
+            surfaceVariant = Night, onSurfaceVariant = Muted, outline = Line, outlineVariant = Line,
+            surfaceContainerLowest = OrbitSurface, surfaceContainerLow = OrbitSurface, surfaceContainer = OrbitSurface,
+            surfaceContainerHigh = OrbitSurface, surfaceContainerHighest = Night
         ),
-        typography = orbitTypography
+        typography = orbitTypography, shapes = orbitShapes
     ) {
         Surface(Modifier.fillMaxSize(), color = background, contentColor = Ink) {
             Column(Modifier.fillMaxSize().orbitInsets(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -421,15 +440,15 @@ private fun StudyOrbit(
                 }
             },
             confirmButton = {
-                Button(enabled = active?.strict != true,
+                TextButton(enabled = active?.strict != true,
                     onClick = {
                         if (!protectionRunning && !usageAccess) {
                             openSettings(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-                            return@Button
+                            return@TextButton
                         }
                         if (!protectionRunning && !overlayAccess) {
                             openSettings(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, data = Uri.parse("package:${context.packageName}"))
-                            return@Button
+                            return@TextButton
                         }
                         store.prefs.edit().putBoolean(UsageBlockService.ENABLED, !protectionRunning).apply()
                         if (protectionRunning) context.stopService(Intent(context, UsageBlockService::class.java))
@@ -451,7 +470,7 @@ private fun StudyOrbit(
                     putString(Settings.EXTRA_APP_PACKAGE, context.packageName)
                 })
             },
-            onSave = { focus, rest, target, nextTheme, nextSound, nextNudges ->
+            onSave = { focus, rest, target, nextTheme, nextSound, nextNudges, appearance ->
                 store.focusMinutes = focus
                 store.breakMinutes = rest
                 store.goalMinutes = target
@@ -459,18 +478,20 @@ private fun StudyOrbit(
                     .putBoolean("focus_nudges", nextNudges).apply()
                 syncAudio()
                 settings = false
+                if (appearance != store.appearance) {
+                    store.appearance = appearance
+                    onAppearanceChanged()
+                }
             }
         )
         if (strictConfirmation) OrbitSheet({ strictConfirmation = false }) {
-            OrbitHeading(stringResource(R.string.stay_in_your_orbit), size = 26)
-            Text(stringResource(R.string.strict_mode_hides_pause_resume_end_and),
-                color = Muted, fontSize = 16.sp, lineHeight = 23.sp)
-            Spacer(Modifier.height(22.dp))
+            OrbitHeading(stringResource(R.string.stay_in_your_orbit), level = HeadingLevel.Sheet)
+            Text(stringResource(R.string.strict_mode_hides_pause_resume_end_and), color = Muted)
             Text("$focusMinutes-minute focus" + if (subject.isBlank()) "" else " · $subject",
                 color = Accent, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(Gap.xs))
             OrbitButton(stringResource(R.string.start_strict_session), { strictConfirmation = false; launchSession(focusMinutes) }, Modifier.fillMaxWidth())
-            OrbitButton(stringResource(R.string.not_now), { strictConfirmation = false }, Modifier.fillMaxWidth(), primary = false, rounded = false)
+            OrbitButton(stringResource(R.string.not_now), { strictConfirmation = false }, Modifier.fillMaxWidth(), primary = false)
         }
         if (disclosure) AlertDialog(
             onDismissRequest = { disclosure = false },
@@ -488,17 +509,17 @@ private fun StudyOrbit(
         )
         if (endConfirmation) OrbitSheet({ endConfirmation = false }) {
             val stopwatch = active?.mode == TimerMode.STOPWATCH
-            OrbitHeading(if (stopwatch) "Finish this stopwatch session?" else "End this ${active?.phase?.label?.lowercase() ?: "focus"} session?", size = 26)
+            OrbitHeading(if (stopwatch) "Finish this stopwatch session?" else "End this ${active?.phase?.label?.lowercase() ?: "focus"} session?", level = HeadingLevel.Sheet)
             Text(if (stopwatch) "Full minutes on the stopwatch count toward your goal."
                 else "Unfinished countdown rounds don’t add study minutes. A completed round is always saved.",
-                color = Muted, fontSize = 16.sp, lineHeight = 23.sp)
-            Spacer(Modifier.height(40.dp))
+                color = Muted)
+            Spacer(Modifier.height(Gap.xs))
             OrbitButton(stringResource(R.string.keep_going), { endConfirmation = false }, Modifier.fillMaxWidth(), primary = !stopwatch)
             OrbitButton(if (stopwatch) "Save & finish" else "End session", {
                 endConfirmation = false
                 model.finish()
                 syncAudio()
-            }, Modifier.fillMaxWidth(), primary = stopwatch, rounded = false)
+            }, Modifier.fillMaxWidth(), primary = stopwatch)
         }
     }
 }
@@ -509,7 +530,7 @@ private fun AppHeader(
     onTimer: () -> Unit, onSettings: () -> Unit
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = orbitTopPadding(), bottom = 19.dp),
+        Modifier.fillMaxWidth().padding(start = ScreenPadding, end = ScreenPadding, top = orbitTopPadding(), bottom = Gap.lg),
         verticalAlignment = Alignment.Top
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -518,10 +539,7 @@ private fun AppHeader(
                 ActiveTimerLink(session, onTimer)
             }
         }
-        IconButton(onClick = onSettings, modifier = Modifier.background(OrbitSurface, CircleShape)) {
-            Image(painterResource(R.drawable.fig_sun),
-                contentDescription = stringResource(R.string.theme_settings), modifier = Modifier.size(24.dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Ink))
-        }
+        OrbitIconButton(R.drawable.fig_sun, stringResource(R.string.theme_settings), onSettings)
     }
 }
 
@@ -546,7 +564,7 @@ private fun ActiveTimerLink(session: Session, onTimer: () -> Unit) {
     ) {
         Text("$status · ${timerDigits(time.value ?: session.remaining, stopwatch)}", color = Accent, fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold, style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"))
-        Icon(painterResource(R.drawable.ic_next), null, Modifier.size(16.dp), tint = Accent)
+        OrbitIcon(R.drawable.ic_next, size = 16.dp)
     }
 }
 
@@ -554,15 +572,15 @@ private fun ActiveTimerLink(session: Session, onTimer: () -> Unit) {
 private fun BottomTabs(current: Destination, onSelect: (Destination) -> Unit) {
     Surface(
         modifier = Modifier.widthIn(max = 580.dp).fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 5.dp, bottom = 6.dp),
-        shape = RoundedCornerShape(29.dp), color = Color(0xFF211E38), shadowElevation = 4.dp
+            .padding(start = Gap.lg, end = Gap.lg, top = 5.dp, bottom = 6.dp),
+        shape = RoundedCornerShape(29.dp), color = NavContainer, shadowElevation = 4.dp,
+        border = BorderStroke(1.dp, Line.copy(alpha = .5f))
     ) {
         Row(Modifier.selectableGroup().padding(5.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             Destination.entries.forEach { tab ->
                 val selected = tab == current
-                val pill by animateColorAsState(
-                    if (selected) Color(0xFFE6DEFF) else Color(0x00E6DEFF), tween(180), label = "Tab highlight"
-                )
+                val pill by animateColorAsState(if (selected) NavPill else NavPill.copy(alpha = 0f), tween(180), label = "Tab highlight")
+                val content = if (selected) NavPillContent else NavContent
                 Column(
                     modifier = Modifier.weight(1f).heightIn(min = 58.dp).clip(RoundedCornerShape(24.dp))
                         .background(pill)
@@ -572,8 +590,8 @@ private fun BottomTabs(current: Destination, onSelect: (Destination) -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically)
                 ) {
                     Image(painterResource(if (selected) tab.selectedIcon else tab.icon), null, Modifier.size(22.dp),
-                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(if (selected) Color(0xFF211E38) else Color(0xFFE1DEEE)))
-                    Text(tab.label, color = if (selected) Color(0xFF211E38) else Color(0xFFE1DEEE), fontSize = 13.sp, lineHeight = 14.sp,
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(content))
+                    Text(tab.label, color = content, fontSize = 13.sp, lineHeight = 14.sp,
                         textAlign = TextAlign.Center, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
                 }
             }
@@ -585,13 +603,14 @@ private fun BottomTabs(current: Destination, onSelect: (Destination) -> Unit) {
 private fun SettingsDialog(
     store: FocusStore, focus: Int, rest: Int, goal: Int,
     theme: TimerTheme, sound: Soundscape, nudges: Boolean, onDismiss: () -> Unit,
-    onNotifications: () -> Unit, onSave: (Int, Int, Int, TimerTheme, Soundscape, Boolean) -> Unit
+    onNotifications: () -> Unit, onSave: (Int, Int, Int, TimerTheme, Soundscape, Boolean, AppAppearance) -> Unit
 ) {
     var focusText by rememberSaveable { mutableStateOf(focus.toString()) }
     var restText by rememberSaveable { mutableStateOf(rest.toString()) }
     var goalText by rememberSaveable { mutableStateOf(goal.toString()) }
     var longBreak by rememberSaveable { mutableStateOf(store.longBreakMinutes.toString()) }
     var rounds by rememberSaveable { mutableStateOf(store.rounds.toString()) }
+    var appearance by rememberSaveable { mutableStateOf(store.appearance) }
     var selectedTheme by rememberSaveable { mutableStateOf(theme) }
     var selectedSound by rememberSaveable { mutableStateOf(sound) }
     var showNudges by rememberSaveable { mutableStateOf(nudges) }
@@ -600,43 +619,36 @@ private fun SettingsDialog(
     val c = goalText.toIntOrNull() ?: 0
     val d = longBreak.toIntOrNull() ?: 0
     val e = rounds.toIntOrNull() ?: 0
-    OrbitFullScreen(onDismiss) {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                .padding(start = 24.dp, end = 24.dp, top = orbitTopPadding(), bottom = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            IconButton(onClick = onDismiss, modifier = Modifier.offset(x = (-17).dp)) {
-                OrbitIcon(R.drawable.ic_previous, stringResource(R.string.back))
-            }
-            Row(
-                Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OrbitHeading(stringResource(R.string.study_preferences), Modifier.weight(1f))
-                Image(painterResource(R.drawable.ic_studyorbit), null, Modifier.size(38.dp))
-            }
-            Text(stringResource(R.string.saved_on_this_device_no_account_needed), color = Muted, fontSize = 13.sp)
-            Spacer(Modifier.height(12.dp))
+    OrbitScreen(stringResource(R.string.study_preferences), onDismiss) {
+        Text(stringResource(R.string.saved_on_this_device_no_account_needed), color = Muted, fontSize = 13.sp)
+        SectionTitle("Timer", Modifier.padding(top = Gap.sm))
+        Column(verticalArrangement = Arrangement.spacedBy(Gap.sm)) {
             PreferenceNumber("Focus duration", focusText, { focusText = it }, "min", 1..180)
             PreferenceNumber("Short break", restText, { restText = it }, "min", 1..180)
             PreferenceNumber("Long break", longBreak, { longBreak = it }, "min", 1..180)
-            PreferenceNumber("Pomodoro rounds", rounds, { rounds = it }, " ·  2–12", 2..12)
-            PreferenceNumber("Daily goal", goalText, { goalText = it }, "min  ·  1–720", 1..720)
-            MusicPicker(selectedSound) { selectedSound = it }
-            ThemePicker(selectedTheme, onSelect = { selectedTheme = it })
-            Spacer(Modifier.height(8.dp))
-            ToggleRule(stringResource(R.string.companion_nudges), "", showNudges) { showNudges = it }
-            TextButton(onClick = onNotifications, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 58.dp)) {
-                Text(stringResource(R.string.notification_settings), fontWeight = FontWeight.SemiBold)
-            }
-            OrbitButton(stringResource(R.string.save_settings), {
-                store.longBreakMinutes = d
-                store.rounds = e
-                onSave(a, b, c, selectedTheme, selectedSound, showNudges)
-            }, Modifier.fillMaxWidth(), enabled = a in 1..180 && b in 1..180 && c in 1..720 && d in 1..180 && e in 2..12)
-            OrbitButton(stringResource(R.string.cancel), onDismiss, Modifier.fillMaxWidth(), primary = false, rounded = false)
+            PreferenceNumber("Pomodoro rounds", rounds, { rounds = it }, "rounds", 2..12)
+            PreferenceNumber("Daily goal", goalText, { goalText = it }, "min", 1..720)
         }
+        SectionTitle("Atmosphere", Modifier.padding(top = Gap.sm))
+        MusicPicker(selectedSound) { selectedSound = it }
+        Column(Modifier.fillMaxWidth().orbitField().padding(horizontal = Gap.lg, vertical = Gap.md),
+            verticalArrangement = Arrangement.spacedBy(Gap.sm)) {
+            Text(stringResource(R.string.app_appearance), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            OrbitSegmented(AppAppearance.entries.map { stringResource(it.label) }, appearance.ordinal,
+                onSelect = { appearance = AppAppearance.entries[it] })
+        }
+        ThemePicker(selectedTheme, onSelect = { selectedTheme = it })
+        SectionTitle("Reminders", Modifier.padding(top = Gap.sm))
+        Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+            ToggleRule(stringResource(R.string.companion_nudges), "", showNudges) { showNudges = it }
+        }
+        OrbitButton(stringResource(R.string.notification_settings), onNotifications, Modifier.fillMaxWidth(), primary = false,
+            container = OrbitSurface)
+        OrbitButton(stringResource(R.string.save_settings), {
+            store.longBreakMinutes = d
+            store.rounds = e
+            onSave(a, b, c, selectedTheme, selectedSound, showNudges, appearance)
+        }, Modifier.fillMaxWidth(), enabled = a in 1..180 && b in 1..180 && c in 1..720 && d in 1..180 && e in 2..12)
     }
 }
 
@@ -651,7 +663,7 @@ private fun PreferenceNumber(label: String, value: String, onChange: (String) ->
 private fun PermissionStep(label: String, granted: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (granted) OrbitIcon(R.drawable.ic_orbit_check, stringResource(R.string.granted))
-        else Box(Modifier.size(24.dp).padding(4.dp).then(Modifier.border(1.dp, Muted, CircleShape)))
+        else Box(Modifier.size(24.dp).padding(3.dp).border(1.5.dp, Muted, CircleShape))
         Text(label, color = Ink)
     }
 }

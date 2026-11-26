@@ -57,73 +57,74 @@ internal fun ContentRulesDialog(
     val invalidBlocked = blockedList.any { websiteHost(it) == null }
     val invalidAllowed = allowedList.any { websiteHost(it) == null }
     val channelList = channels.entries().map(::channelKey).filter { it.isNotBlank() }.toSet()
-    OrbitFullScreen(onDismiss) {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = orbitTopPadding(), bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                BlockSubpageTitle("Web & YouTube rules", onDismiss)
-                Text(when {
-                    !editable -> "These rules are locked."
-                    enabled -> "Accessibility is on · rules are enforced"
-                    else -> "Needs Accessibility · rules not enforced"
-                }, color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                OutlinedTextField(blocked, { blocked = it.take(4000) }, enabled = editable, isError = invalidBlocked,
-                    label = { Text(stringResource(R.string.always_blocked_sites)) }, placeholder = { Text(stringResource(R.string.example_com)) }, maxLines = 4,
-                    supportingText = { Text(if (invalidBlocked) "Enter valid domains or URLs." else "One domain or URL per line.") })
-                val catalogStatus = when {
-                    catalogReady -> R.string.adult_catalog_ready
-                    downloadFailed -> R.string.adult_catalog_failed
-                    downloading -> R.string.adult_catalog_downloading
-                    adult -> R.string.adult_catalog_legacy
-                    else -> R.string.adult_catalog_required
-                }
-                ToggleRule(stringResource(R.string.adult_catalog_toggle), stringResource(catalogStatus),
-                    adult, editable && (catalogReady || adult)) { adult = it }
-                if (!catalogReady) {
-                    if (downloading) {
-                        LinearProgressIndicator(
-                            Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
-                            color = Accent, trackColor = OrbitTrack
-                        )
-                    } else {
-                        OrbitButton(stringResource(if (downloadFailed) R.string.adult_catalog_retry else R.string.adult_catalog_download), {
-                            downloading = true
-                            downloadFailed = false
-                            scope.launch {
-                                try {
-                                    DomainCatalog.download(context.applicationContext)
-                                    catalogReady = true
-                                } catch (_: IOException) {
-                                    downloadFailed = true
-                                } finally {
-                                    downloading = false
-                                }
+    OrbitScreen("Web & YouTube rules", onDismiss) {
+        Text(when {
+            !editable -> "These rules are locked."
+            enabled -> "Accessibility is on · rules are enforced"
+            else -> "Needs Accessibility · rules not enforced"
+        }, color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        OrbitField(stringResource(R.string.always_blocked_sites), blocked, { blocked = it.take(4000) }, Modifier.fillMaxWidth(),
+            placeholder = stringResource(R.string.example_com), enabled = editable, lines = 3, error = invalidBlocked,
+            errorText = "Enter valid domains or URLs.", helper = "One domain or URL per line.")
+        val catalogStatus = when {
+            catalogReady -> R.string.adult_catalog_ready
+            downloadFailed -> R.string.adult_catalog_failed
+            downloading -> R.string.adult_catalog_downloading
+            adult -> R.string.adult_catalog_legacy
+            else -> R.string.adult_catalog_required
+        }
+        Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+            ToggleRule(stringResource(R.string.adult_catalog_toggle), stringResource(catalogStatus),
+                adult, editable && (catalogReady || adult)) { adult = it }
+            if (!catalogReady) {
+                if (downloading) {
+                    LinearProgressIndicator(
+                        Modifier.fillMaxWidth().padding(bottom = Gap.lg).semantics { liveRegion = LiveRegionMode.Polite },
+                        color = Accent, trackColor = OrbitTrack
+                    )
+                } else {
+                    OrbitButton(stringResource(if (downloadFailed) R.string.adult_catalog_retry else R.string.adult_catalog_download), {
+                        downloading = true
+                        downloadFailed = false
+                        scope.launch {
+                            try {
+                                DomainCatalog.download(context.applicationContext)
+                                catalogReady = true
+                            } catch (_: IOException) {
+                                downloadFailed = true
+                            } finally {
+                                downloading = false
                             }
-                        }, Modifier.fillMaxWidth(), primary = false)
-                    }
+                        }
+                    }, Modifier.fillMaxWidth().padding(bottom = Gap.lg), primary = false)
                 }
-                ToggleRule(stringResource(R.string.browser_study_mode), "Allow listed sites during focus in supported browsers.", browser, editable) { browser = it }
-                if (browser) OutlinedTextField(allowed, { allowed = it.take(4000) },
-                    enabled = editable, isError = invalidAllowed,
-                    label = { Text(stringResource(R.string.allowed_study_sites)) }, placeholder = { Text(stringResource(R.string.khanacademy_org)) }, maxLines = 4,
-                    supportingText = { Text(if (invalidAllowed) "Enter valid domains or URLs." else "One domain or URL per line.") })
-                ToggleRule(stringResource(R.string.youtube_study_mode), "Block Shorts and filter the home feed and videos during focus.", youtube, editable) { youtube = it }
-                if (youtube) {
-                    OutlinedTextField(channels, { channels = it.take(4000) }, enabled = editable,
-                        label = { Text(stringResource(R.string.allowed_study_channels)) }, maxLines = 4,
-                        supportingText = { Text(stringResource(R.string.one_channel_name_or_handle_per_line)) })
-                }
-                ToggleRule(stringResource(R.string.lock_rules_until_midnight), "Changes are available again after the daily reset.", lock, editable) { lock = it }
-                Text(stringResource(R.string.browser_and_video_detection_depends_on_what),
-                    color = Muted, fontSize = 13.sp)
-                OrbitButton(stringResource(R.string.save_rules), {
-                    onSave(ContentRules(
-                        blockedList.mapNotNull(::websiteHost).toSet(), allowedList.mapNotNull(::websiteHost).toSet(),
-                        adult, browser, youtube, channelList, if (lock) nextMidnight() else 0
-                    ))
-                }, Modifier.fillMaxWidth(), enabled = editable && !invalidBlocked && !invalidAllowed &&
-                    (!browser || allowedList.isNotEmpty()) && (!youtube || channelList.isNotEmpty()))
-                OrbitButton(if (editable) "Cancel" else "Close", onDismiss, Modifier.fillMaxWidth(), primary = false, rounded = false)
             }
+        }
+        Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+            ToggleRule(stringResource(R.string.browser_study_mode), "Allow listed sites during focus in supported browsers.", browser, editable) { browser = it }
+        }
+        if (browser) OrbitField(stringResource(R.string.allowed_study_sites), allowed, { allowed = it.take(4000) },
+            Modifier.fillMaxWidth(), placeholder = stringResource(R.string.khanacademy_org), enabled = editable, lines = 3,
+            error = invalidAllowed, errorText = "Enter valid domains or URLs.", helper = "One domain or URL per line.")
+        Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+            ToggleRule(stringResource(R.string.youtube_study_mode), "Block Shorts and filter the home feed and videos during focus.", youtube, editable) { youtube = it }
+        }
+        if (youtube) {
+            OrbitField(stringResource(R.string.allowed_study_channels), channels, { channels = it.take(4000) }, Modifier.fillMaxWidth(),
+                enabled = editable, lines = 3, helper = stringResource(R.string.one_channel_name_or_handle_per_line))
+        }
+        Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+            ToggleRule(stringResource(R.string.lock_rules_until_midnight), "Changes are available again after the daily reset.", lock, editable) { lock = it }
+        }
+        Text(stringResource(R.string.browser_and_video_detection_depends_on_what), color = Muted, fontSize = 13.sp)
+        if (editable) OrbitButton(stringResource(R.string.save_rules), {
+            onSave(ContentRules(
+                blockedList.mapNotNull(::websiteHost).toSet(), allowedList.mapNotNull(::websiteHost).toSet(),
+                adult, browser, youtube, channelList, if (lock) nextMidnight() else 0
+            ))
+        }, Modifier.fillMaxWidth(), enabled = !invalidBlocked && !invalidAllowed &&
+            (!browser || allowedList.isNotEmpty()) && (!youtube || channelList.isNotEmpty()))
+        else OrbitButton("Close", onDismiss, Modifier.fillMaxWidth())
     }
 }
 
@@ -140,14 +141,25 @@ internal fun StudyShortcuts(rules: ContentRules) {
         Text(stringResource(R.string.add_sites_and_channels_under_block_advanced), color = Muted, fontSize = 13.sp)
     }
     rules.allowedHosts.sorted().forEach { host ->
-        OrbitButton("$host  ↗", { launch("https://$host") }, Modifier.fillMaxWidth(), primary = false, rounded = false, container = OrbitSurface)
+        ShortcutRow(host) { launch("https://$host") }
     }
     rules.channels.sorted().forEach { name ->
-        OrbitButton("$name  ↗", {
+        ShortcutRow(name) {
             val url = if (name.matches(Regex("[a-zA-Z0-9_.-]+"))) "https://www.youtube.com/@${Uri.encode(name)}"
                 else "https://www.youtube.com/results?search_query=${Uri.encode(name)}"
             launch(url)
-        }, Modifier.fillMaxWidth(), primary = false, rounded = false, container = OrbitSurface)
+        }
+    }
+}
+
+@Composable
+private fun ShortcutRow(label: String, onClick: () -> Unit) {
+    Panel(onClick = onClick, contentPadding = PaddingValues(horizontal = Gap.lg, vertical = Gap.sm)) {
+        Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, Modifier.weight(1f), color = Ink, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            OrbitIcon(R.drawable.ic_external, tint = Muted)
+        }
     }
 }
 
@@ -177,40 +189,32 @@ internal fun ScreenTimePanel(
         }
     }
     Panel {
-        Text(stringResource(R.string.device_screen_time), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-        Text(stringResource(R.string.not_counted_as_study_time), color = Muted, fontSize = 13.sp)
-        Row(Modifier.fillMaxWidth().padding(top = 9.dp, bottom = 5.dp).clip(FieldShape).background(Night)) {
-            listOf("Today", "Last 7 days").forEachIndexed { index, label ->
-                val selected = weekly == (index == 1)
-                Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(FieldShape).background(if (selected) AccentSurface else Night)
-                    .selectable(selected, enabled = access) { weekly = index == 1 }, contentAlignment = Alignment.Center) {
-                    Text(label, color = Accent, fontSize = 13.sp)
-                }
-            }
-        }
+        SectionTitle(stringResource(R.string.device_screen_time), caption = stringResource(R.string.not_counted_as_study_time))
+        OrbitSegmented(listOf("Today", "Last 7 days"), if (weekly) 1 else 0, { weekly = it == 1 },
+            Modifier.padding(top = Gap.md, bottom = Gap.xs), enabled = access)
         val entries = report.orEmpty()
         when {
             !access -> {
-                Text(stringResource(R.string.understand_where_your_day_goes), Modifier.padding(vertical = 7.dp), color = Muted, fontSize = 13.sp)
+                Text(stringResource(R.string.understand_where_your_day_goes), Modifier.padding(vertical = Gap.md), color = Muted, fontSize = 14.sp)
                 OrbitButton(stringResource(R.string.allow_usage_access), onAccess, Modifier.fillMaxWidth(), primary = false)
             }
             entries.isEmpty() -> {
                 Text(if (!loaded) "Reading app usage…" else "No device usage recorded.",
-                    Modifier.padding(vertical = 12.dp), color = Muted, fontSize = 13.sp)
+                    Modifier.padding(vertical = Gap.md), color = Muted, fontSize = 14.sp)
             }
             else -> {
                 val sum = entries.values.sum()
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(usageLabel(sum), Modifier.weight(1f), color = Ink, fontSize = 28.sp, lineHeight = 34.sp,
-                        fontWeight = FontWeight.SemiBold)
+                        fontWeight = FontWeight.Bold)
                     Text(if (weekly) "Avg. ${usageLabel(sum / 7)} / day" else "Total device usage",
                         Modifier.weight(1f), color = Muted, fontSize = 13.sp)
                 }
                 val totals = entries.entries.groupBy { store.rule(it.key).tag }
                     .mapValues { (_, apps) -> apps.sumOf { it.value } }
-                val tags = listOf(AppTag.PRODUCTIVE to Forest, AppTag.DISTRACTING to androidx.compose.ui.graphics.Color(0xFFAC4C32),
+                val tags = listOf(AppTag.PRODUCTIVE to Forest, AppTag.DISTRACTING to Distracting,
                     AppTag.UNTAGGED to ChartSage)
-                Row(Modifier.fillMaxWidth().padding(top = 12.dp).height(12.dp).clip(CircleShape).background(Night)) {
+                Row(Modifier.fillMaxWidth().padding(top = Gap.md).height(10.dp).clip(CircleShape).background(Night)) {
                     tags.forEach { (tag, color) ->
                         val duration = totals[tag] ?: 0L
                         if (duration > 0) Spacer(Modifier.weight(duration.toFloat()).fillMaxHeight().background(color))
@@ -227,8 +231,8 @@ internal fun ScreenTimePanel(
                         }
                     }
                 }
-                HorizontalDivider(Modifier.padding(vertical = 9.dp), color = Line)
-                Text(stringResource(R.string.most_used), color = Muted, fontSize = 13.sp)
+                HorizontalDivider(Modifier.padding(vertical = Gap.md), color = Line)
+                Text(stringResource(R.string.most_used), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 2.dp))
                 entries.entries.sortedByDescending { it.value }.take(4).forEach { (pkg, time) ->
                     UsageRow(names?.get(pkg) ?: pkg, time)
                 }
@@ -239,9 +243,10 @@ internal fun ScreenTimePanel(
 
 @Composable
 private fun UsageRow(label: String, time: Long) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-        Text(label, Modifier.weight(1f), color = Ink, fontSize = 13.sp)
-        Text(usageLabel(time), color = Muted, fontSize = 13.sp)
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(label, Modifier.weight(1f).padding(end = Gap.md), color = Ink, fontSize = 14.sp, maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(usageLabel(time), color = Muted, fontSize = 14.sp, style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"))
     }
 }
 

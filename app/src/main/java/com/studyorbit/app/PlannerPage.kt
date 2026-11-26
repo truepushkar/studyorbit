@@ -64,8 +64,8 @@ internal fun PlannerPage(
     val atToday = weekOffset == 0 && dayOffset == today.dayOfWeek.ordinal
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 6.dp, bottom = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        contentPadding = PaddingValues(start = ScreenPadding, end = ScreenPadding, top = 4.dp, bottom = Gap.xl),
+        verticalArrangement = Arrangement.spacedBy(Gap.md)
     ) {
         item {
             Surface(Modifier.fillMaxWidth(), color = OrbitSurface, shape = CardShape,
@@ -78,7 +78,7 @@ internal fun PlannerPage(
                 }) {
                     Row(Modifier.fillMaxWidth().background(AccentSurface), verticalAlignment = Alignment.CenterVertically) {
                         IconButton({ weekOffset-- }) { OrbitIcon(R.drawable.ic_previous, androidx.compose.ui.res.stringResource(R.string.previous_week)) }
-                        Text(weekLabel, Modifier.weight(1f), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                        Text(weekLabel, Modifier.weight(1f), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         if (!atToday) TextButton(
                             onClick = { weekOffset = 0; dayOffset = today.dayOfWeek.ordinal },
@@ -86,8 +86,8 @@ internal fun PlannerPage(
                         ) { Text(stringResource(R.string.go_to_today), fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
                         IconButton({ weekOffset++ }) { OrbitIcon(R.drawable.ic_next, androidx.compose.ui.res.stringResource(R.string.next_week)) }
                     }
-                    Column(Modifier.padding(6.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Column(Modifier.padding(Gap.sm)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             repeat(7) { index ->
                                 val date = week.plusDays(index.toLong())
                                 val selected = dayOffset == index
@@ -119,58 +119,54 @@ internal fun PlannerPage(
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OrbitHeading(day.format(DateTimeFormatter.ofPattern("EEEE, MMMM d")), Modifier.weight(1f), size = 18)
-                if (itemsForDay.isNotEmpty()) TextButton({ editId = "" }, enabled = !locked) { Text(stringResource(R.string.add_session)) }
+                OrbitHeading(day.format(DateTimeFormatter.ofPattern("EEEE, MMMM d")), Modifier.weight(1f), level = HeadingLevel.Section)
+                if (itemsForDay.isNotEmpty()) TextButton({ editId = "" }, enabled = !locked, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.add_session), fontWeight = FontWeight.SemiBold)
+                }
             }
         }
         if (itemsForDay.isEmpty()) item {
-            Panel {
-                Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    OrbitHeading(stringResource(R.string.open_study_day), size = 22)
-                    Text(stringResource(R.string.no_sessions_scheduled_for_this_date), Modifier.padding(top = 5.dp),
-                        color = Muted, fontSize = 14.sp)
-                    TextButton({ editId = "" }, enabled = !locked) { Text(stringResource(R.string.plan_a_session)) }
-                }
+            Panel(tone = PanelTone.Quiet) {
+                OrbitHeading(stringResource(R.string.open_study_day), level = HeadingLevel.Section)
+                Text(stringResource(R.string.no_sessions_scheduled_for_this_date), Modifier.padding(top = 4.dp, bottom = Gap.lg),
+                    color = Muted, fontSize = 14.sp)
+                OrbitButton(stringResource(R.string.plan_a_session), { editId = "" }, Modifier.fillMaxWidth(), enabled = !locked)
             }
         }
         items(itemsForDay, key = { it.id }) { schedule ->
             Panel {
                 val clock = DateTimeFormatter.ofPattern(if (DateFormat.is24HourFormat(LocalContext.current)) "HH:mm" else "h:mm a")
-                Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(bottom = Gap.md), verticalAlignment = Alignment.CenterVertically) {
                     Text("${schedule.time.format(clock)} – ${schedule.time.plusMinutes(schedule.minutes.toLong()).format(clock)}",
-                        Modifier.background(AccentSurface, CircleShape).padding(horizontal = 10.dp, vertical = 2.dp),
-                        color = Accent, fontSize = 13.sp)
+                        Modifier.background(AccentSurface, CircleShape).padding(horizontal = 10.dp, vertical = 3.dp),
+                        color = Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.weight(1f))
                     Text(if (schedule.repeat.isEmpty()) "One-time" else "Repeats weekly", color = Muted, fontSize = 13.sp)
                 }
                 Text(schedule.name, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                Text("${schedule.minutes} min", color = Muted, fontSize = 13.sp)
-                Text("Reminder ${if (schedule.remind) "on" else "off"}  ·  Focus rules ${if (schedule.block) "on" else "off"}",
-                    color = Muted, fontSize = 13.sp)
-                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OrbitButton(if (timerBusy) "Timer active" else "Start now", { onStart(schedule) }, Modifier.weight(1.25f),
+                Text("${schedule.minutes} min · Reminder ${if (schedule.remind) "on" else "off"} · Focus rules ${if (schedule.block) "on" else "off"}",
+                    Modifier.padding(top = 2.dp), color = Muted, fontSize = 13.sp)
+                Row(Modifier.padding(top = Gap.lg), horizontalArrangement = Arrangement.spacedBy(Gap.sm)) {
+                    OrbitButton(if (timerBusy) "Timer active" else "Start now", { onStart(schedule) }, Modifier.weight(1.4f),
                         enabled = !timerBusy)
                     OrbitButton(stringResource(R.string.edit), { editId = schedule.id }, Modifier.weight(1f), primary = false, enabled = !locked)
-                    TextButton(onClick = { removeId = schedule.id }, enabled = !locked,
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        modifier = Modifier.weight(1f).heightIn(min = 52.dp)) { Text(stringResource(R.string.delete)) }
+                    OrbitButton(stringResource(R.string.delete), { removeId = schedule.id }, Modifier.weight(1f), primary = false,
+                        danger = true, enabled = !locked)
                 }
             }
         }
         if (locked || itemsForDay.isNotEmpty()) item {
-            Surface(Modifier.fillMaxWidth(), color = if (locked) AccentSurface else Night, shape = CardShape,
-                border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(if (locked) "Locked during strict focus" else "Your timer stays yours.",
-                        color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                    Text(if (locked) "Session rules are read-only until your strict focus timer ends."
-                        else "Scheduled windows apply focus rules.\nThey never start the visible timer.",
-                        Modifier.padding(top = 8.dp, bottom = 7.dp), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
-                }
+            Panel(tone = if (locked) PanelTone.Tinted else PanelTone.Quiet) {
+                Text(if (locked) "Locked during strict focus" else "Your timer stays yours.",
+                    color = Ink, fontWeight = FontWeight.SemiBold)
+                Text(if (locked) "Session rules are read-only until your strict focus timer ends."
+                    else "Scheduled windows apply focus rules.\nThey never start the visible timer.",
+                    Modifier.padding(top = 4.dp), color = Muted, fontSize = 13.sp)
             }
         }
         if (!exactAlarms) item {
-            TextButton(onClick = onExactAlarms) { Text(stringResource(R.string.precise_reminders_open_alarm_settings)) }
+            OrbitButton(stringResource(R.string.precise_reminders_open_alarm_settings), onExactAlarms, Modifier.fillMaxWidth(),
+                primary = false, container = OrbitSurface)
         }
     }
     editId?.let { id ->
@@ -214,56 +210,52 @@ private fun ScheduleDialog(
     val date = LocalDate.parse(dayText)
     val time = LocalTime.parse(timeText)
     val selectedDays = DayOfWeek.entries.filter { days and (1 shl it.ordinal) != 0 }.toSet()
-    OrbitFullScreen(onClose) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = orbitTopPadding(), bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClose, contentPadding = PaddingValues(end = 25.dp)) { Text(stringResource(R.string.cancel)) }
-                OrbitHeading(if (original == null) "Plan a session" else "Edit session", size = 23)
+    OrbitScreen(if (original == null) "Plan a session" else "Edit session", onClose) {
+        OrbitField(stringResource(R.string.session_name), title, { title = it.take(70) }, Modifier.fillMaxWidth(), placeholder = "e.g. Circuit diagrams")
+        SchedulePicker("Date", date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)), Modifier.fillMaxWidth()) {
+            DatePickerDialog(context, { _, year, month, day ->
+                dayText = LocalDate.of(year, month + 1, day).toString()
+            }, date.year, date.monthValue - 1, date.dayOfMonth).show()
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(Gap.md)) {
+            SchedulePicker("Start time", time.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)), Modifier.weight(1f)) {
+                TimePickerDialog(context, { _, hour, minute ->
+                    timeText = LocalTime.of(hour, minute).toString()
+                }, time.hour, time.minute, DateFormat.is24HourFormat(context)).show()
             }
-            Box(Modifier.align(Alignment.CenterHorizontally).width(44.dp).height(4.dp).background(Muted, CircleShape))
-            OrbitField(stringResource(R.string.session_name), title, { title = it.take(70) }, Modifier.fillMaxWidth(), placeholder = "e.g. Circuit diagrams")
-            SchedulePicker("Date", date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)), Modifier.fillMaxWidth()) {
-                DatePickerDialog(context, { _, year, month, day ->
-                    dayText = LocalDate.of(year, month + 1, day).toString()
-                }, date.year, date.monthValue - 1, date.dayOfMonth).show()
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                SchedulePicker("Start time", time.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)), Modifier.weight(1f)) {
-                    TimePickerDialog(context, { _, hour, minute ->
-                        timeText = LocalTime.of(hour, minute).toString()
-                    }, time.hour, time.minute, DateFormat.is24HourFormat(context)).show()
-                }
-                OrbitField(stringResource(R.string.duration_1_180_min), length, { length = it.filter(Char::isDigit).take(3) }, Modifier.weight(1f),
-                    numeric = true, suffix = "min", error = length.toIntOrNull() !in 1..180,
-                    errorText = stringResource(R.string.error_range, 1, 180))
-            }
-            Column(Modifier.padding(top = 8.dp)) {
-                Text(stringResource(R.string.repeat_weekly), color = Ink, fontSize = 15.sp)
-                Text(stringResource(R.string.leave_all_days_unselected_for_one_time), color = Muted, fontSize = 13.sp)
-                Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    DayOfWeek.entries.forEach { weekday ->
-                        val selected = weekday in selectedDays
-                        val label = weekday.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
-                        Box(Modifier.weight(1f).aspectRatio(1f).clip(CircleShape)
-                            .background(if (selected) Accent else OrbitSurface).selectable(selected, role = Role.Checkbox) {
-                                days = days xor (1 shl weekday.ordinal)
-                            }.semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
-                            Text(label.take(2), color = if (selected) OnAccent else Muted, fontWeight = FontWeight.SemiBold)
-                        }
+            OrbitField(stringResource(R.string.duration_1_180_min), length, { length = it.filter(Char::isDigit).take(3) }, Modifier.weight(1f),
+                numeric = true, suffix = "min", error = length.toIntOrNull() !in 1..180,
+                errorText = stringResource(R.string.error_range, 1, 180))
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(Gap.sm)) {
+            SectionTitle(stringResource(R.string.repeat_weekly), caption = stringResource(R.string.leave_all_days_unselected_for_one_time))
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(Gap.xs)) {
+                DayOfWeek.entries.forEach { weekday ->
+                    val selected = weekday in selectedDays
+                    val label = weekday.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
+                    Box(Modifier.weight(1f).aspectRatio(1f).clip(CircleShape)
+                        .background(if (selected) Accent else OrbitSurface)
+                        .border(1.dp, if (selected) Accent else Line, CircleShape)
+                        .selectable(selected, role = Role.Checkbox) {
+                            days = days xor (1 shl weekday.ordinal)
+                        }.semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
+                        Text(label.take(2), color = if (selected) OnAccent else Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
-            ToggleRule(stringResource(R.string.reminder), "Notify me at the scheduled start time.", remind) { remind = it }
-            ToggleRule(stringResource(R.string.apply_focus_rules), "Use existing blocking rules for this window.", block) { block = it }
-            if (!exactAlarms) OrbitButton(stringResource(R.string.precise_reminders_open_alarm_settings), onExactAlarms,
-                Modifier.fillMaxWidth(), primary = false, rounded = false)
-            OrbitButton(stringResource(R.string.save_session), {
-                val draft = StudySchedule(name = title.trim(), date = date, time = time, minutes = length.toInt(),
-                    repeat = selectedDays, block = block, remind = remind)
-                onSave(if (original == null) draft else draft.copy(id = original.id))
-            }, Modifier.fillMaxWidth(), enabled = title.isNotBlank() && length.toIntOrNull() in 1..180)
         }
+        Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+            ToggleRule(stringResource(R.string.reminder), "Notify me at the scheduled start time.", remind) { remind = it }
+            HorizontalDivider(color = Line)
+            ToggleRule(stringResource(R.string.apply_focus_rules), "Use existing blocking rules for this window.", block) { block = it }
+        }
+        if (!exactAlarms) OrbitButton(stringResource(R.string.precise_reminders_open_alarm_settings), onExactAlarms,
+            Modifier.fillMaxWidth(), primary = false, container = OrbitSurface)
+        OrbitButton(stringResource(R.string.save_session), {
+            val draft = StudySchedule(name = title.trim(), date = date, time = time, minutes = length.toInt(),
+                repeat = selectedDays, block = block, remind = remind)
+            onSave(if (original == null) draft else draft.copy(id = original.id))
+        }, Modifier.fillMaxWidth(), enabled = title.isNotBlank() && length.toIntOrNull() in 1..180)
     }
 }
 
@@ -271,10 +263,10 @@ private fun ScheduleDialog(
 private fun SchedulePicker(label: String, value: String, modifier: Modifier, onClick: () -> Unit) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, color = Muted, fontSize = 13.sp)
-        Box(Modifier.fillMaxWidth().heightIn(min = 54.dp).clip(FieldShape).background(OrbitSurface)
-            .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp),
+        Box(Modifier.fillMaxWidth().heightIn(min = 54.dp).orbitField()
+            .clickable(role = Role.Button, onClick = onClick).padding(horizontal = Gap.lg),
             contentAlignment = Alignment.CenterStart) {
-            Text(value, color = Ink, fontSize = 16.sp, maxLines = 1)
+            Text(value, color = Ink, fontSize = 16.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
 }

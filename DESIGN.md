@@ -1,92 +1,34 @@
----
-name: StudyOrbit
-description: An illustrated space atlas for planning and timing study sessions.
-colors:
-  paper: "#F8F6F2"
-  ink: "#211E38"
-  muted: "#605F72"
-  accent: "#4541A0"
-  on-accent: "#FFFFFF"
-  accent-surface: "#E9E5FC"
-  chart-lavender: "#8984CD"
-  line: "#DEDBE3"
-  forest: "#166558"
-  surface: "#FFFFFF"
-  night: "#EDEAF3"
-  track: "#D7D2E7"
-  coral: "#FFBCAC"
-  overlay: "#171632"
-  overlay-text: "#FFF9F6"
-  overlay-muted: "#C6C5DD"
-  overlay-secondary: "#363355"
-  widget: "#222044"
-typography:
-  heading:
-    fontFamily: Inter
-    fontSize: 36sp
-    fontWeight: 700
-    lineHeight: 42sp
-    letterSpacing: -0.5sp
-  field:
-    fontFamily: Inter
-    fontSize: 16sp
-    fontWeight: 400
-  button:
-    fontFamily: Inter
-    fontSize: 14sp
-    fontWeight: 600
-rounded:
-  field: 10dp
-  button: 14dp
-  panel: 16dp
-spacing:
-  compact: 8dp
-  control-gap: 12dp
-  inset: 16dp
-  page-gutter: 24dp
-components:
-  button-primary:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.on-accent}"
-    typography: "{typography.button}"
-    rounded: "{rounded.button}"
-  field:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.field}"
-  panel:
-    backgroundColor: "{colors.surface}"
-    rounded: "{rounded.panel}"
----
+# StudyOrbit design system
 
-# StudyOrbit
+Native Android, Jetpack Compose, Material 3 underneath. Operate mode: the student is in a task, so consistency beats expression. All tokens live in `OrbitDesign.kt` and `res/values*/palette.xml`; screens never hand-pick these values.
 
-## Overview
+## Scale
+- **Spacing** `Gap.xs 4 · sm 8 · md 12 · lg 16 · xl 24`. Screen edge is `ScreenPadding` (24). Page and list rhythm is `Gap.md`; more space above a heading than below it.
+- **Radius** `CardShape 20` (cards, art panels) · `ButtonShape 16` · `FieldShape 12` (fields, pickers, icon tiles, segmented tracks) · `SheetShape 28` · pills and circles for chips, day cells, icon buttons. Nested radii are the outer radius minus the padding.
+- **Type** (Inter) 13 caption/meta · 14 control and secondary · 16 body and row title · 18 section · 24 sheet · 32 page. Use `OrbitHeading(level = Page | Sheet | Section)` or `SectionTitle`; never `fontSize` a heading. Numerals that change use `tnum`.
+- **Touch** 48dp minimum for every target; buttons are 52dp, on-art buttons 48dp.
 
-Each destination has an illustrated space-travel poster. Focus places the running time and start button on its artwork. Block uses its poster for protection status, Planner for the selected week, and Progress for the daily goal. The surrounding reading and editing surfaces use warm paper.
+## Color
+Role tokens only (`Paper`, `Ink`, `Muted`, `Accent`, `AccentSurface`, `OrbitSurface`, `Night`, `Line`, `Forest`, `Distracting`, nav tokens). Every one has a light and a dark value. Artwork overlays use the fixed `Art*` tokens in both themes. No raw hex in screens.
 
-## Colors
+## Components (one of each)
+| Need | Use |
+|---|---|
+| Card / tappable row / note | `Panel(tone = Surface \| Tinted \| Quiet, onClick?)` |
+| Button | `OrbitButton` (primary, tonal, `container = OrbitSurface` for outlined, `danger`) |
+| Button over artwork | `ArtButton` + `ArtLabel` |
+| Choose one of few | `OrbitSegmented` |
+| Text input, any length | `OrbitField` (`lines`, `helper`, `enabled`) |
+| Picker that opens something | `Modifier.orbitField()` row |
+| Quick action chip | `OrbitChip` |
+| Icon button | `OrbitIconButton` |
+| Full-screen page | `OrbitScreen(title, onClose)` (title leading, one close button trailing) |
+| Confirmation or small task | `OrbitSheet`; system `AlertDialog` is themed to match |
+| Group heading | `SectionTitle(title, caption, action)` |
 
-Use deep violet ink for primary text and muted violet for units and supporting copy. Indigo marks selected dates, links and primary actions on light surfaces. On the Focus poster, the timer is white and the start button is coral with dark text. The seven-day study chart uses an indigo line and a lavender selection halo. Selecting a day shows its recorded minutes. The device-time bar uses proportional segments with matching category labels.
-
-The floating timer and blocking overlay use a midnight background with coral accents. Blocking explanations use pale lavender. Home-screen widgets use a slightly lighter midnight surface with warm white text.
-
-## Typography
-
-Bundled Inter carries headings, controls and body copy. Headings are bold and closely spaced. Use tabular numerals for changing time. The poster shows five-character timer values at 60sp and longer values at 44sp to accommodate hours.
-
-## Layout
-
-Place the four destinations in an inset, deep-violet bottom bar with 29dp corners and a lavender selected tab. Center the content column with a maximum width of 580dp and respect the safe drawing area. The illustrated panels fill the available content width and crop the image to their bounds. Keep labels, status and controls as native elements over the artwork.
-
-## Elevation & Depth
-
-White cards sit on the warm paper surface. Fine pale outlines distinguish fields and panels, and an indigo outline identifies the focused field. Lavender fills group related controls.
-
-## Shapes
-
-Use rounded panels for illustrations and content groups. Fields use tighter corners. The poster’s start control and focus/break selector use pill shapes.
-
-## Components
-
-Start a session directly from its poster. Below it, a session-options row opens the task and strict-mode controls. Keep the numeric timer legible as its text changes length. Pair each tab icon with a visible label and communicate state through native selection semantics.
+## Rules
+- Every `OrbitSurface` container has the 1dp `Line` border.
+- One exit per full-screen page: the close button. No duplicate Cancel under it.
+- Ranges (1–180 min) are helper text under a field, not part of its label or suffix.
+- Glyphs are not icons: no ↗ → ✦. Use drawables (`ic_external`, `ic_next`).
+- Accent is for actions, selection and state, not decoration.

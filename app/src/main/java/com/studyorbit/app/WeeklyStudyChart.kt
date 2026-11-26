@@ -44,7 +44,7 @@ internal fun WeeklyStudyChart(week: List<Pair<LocalDate, Int>>) {
     }
     val minutes = week[selected].second
     val selectedLabel = if (selected == week.lastIndex) "Today" else dates[selected].short
-    Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("$selectedLabel · $minutes min", Modifier.background(AccentSurface, CircleShape)
             .padding(horizontal = 10.dp, vertical = 4.dp), color = Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.weight(1f))

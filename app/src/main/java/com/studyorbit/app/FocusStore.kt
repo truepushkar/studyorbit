@@ -76,6 +76,10 @@ class FocusStore(private val context: Context) {
     var breakMinutes: Int
         get() = prefs.getInt("break_minutes", 5)
         set(value) { prefs.edit().putInt("break_minutes", value).apply() }
+    internal var appearance: AppAppearance
+        get() = AppAppearance.entries.firstOrNull { it.name == prefs.getString("app_appearance", null) } ?: AppAppearance.SYSTEM
+        set(value) { prefs.edit().putString("app_appearance", value.name).apply() }
+
     var goalMinutes: Int
         get() = prefs.getInt("goal_minutes", 60)
         set(value) { prefs.edit().putInt("goal_minutes", value).apply() }

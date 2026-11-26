@@ -124,37 +124,38 @@ internal fun BlockPage(
     val coverWindows = remember(version) { store.prefs.getBoolean("cover_small_windows", true) }
     Column(Modifier.fillMaxSize()) {
         if (showCatalog) {
-            Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = orbitTopPadding())) {
+            Column(Modifier.fillMaxWidth().padding(start = ScreenPadding, end = ScreenPadding, top = orbitTopPadding())) {
                 BlockSubpageTitle("Choose apps", ::closePage)
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(Gap.lg))
                 OrbitField(stringResource(R.string.search_installed_apps), query, { query = it }, Modifier.fillMaxWidth(),
                     placeholder = "App name")
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(Gap.lg))
                 Text("Eligible apps" + (apps?.let { " · ${it.size} results" } ?: ""),
                     color = Muted, fontSize = 13.sp)
             }
         }
         LazyColumn(
             state = listState, modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = when (screen) { "rules" -> 6.dp; "catalog" -> 10.dp; else -> orbitTopPadding() },
-            bottom = if (showCatalog) 4.dp else 18.dp),
-            verticalArrangement = Arrangement.spacedBy(if (screen == "catalog") 14.dp else 9.dp)
+            contentPadding = PaddingValues(start = ScreenPadding, end = ScreenPadding, top = when (screen) { "rules" -> 4.dp; "catalog" -> Gap.md; else -> orbitTopPadding() },
+            bottom = if (showCatalog) Gap.xs else Gap.xl),
+            verticalArrangement = Arrangement.spacedBy(Gap.md)
         ) {
             if (screen == "advanced") {
                 item {
                     BlockSubpageTitle("Advanced filters", ::closePage)
+                    Spacer(Modifier.height(Gap.lg))
                     ProtectionStatus(
                         if (blockAccess) "Accessibility enabled" else "Accessibility required",
                         active = blockAccess
                     )
-                    Spacer(Modifier.height(8.dp))
                     Text(stringResource(R.string.filters_short_videos_and_supported_sites_using),
-                        color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                        Modifier.padding(top = Gap.sm), color = Muted, fontSize = 13.sp)
                     if (!blockAccess) {
-                        Spacer(Modifier.height(20.dp))
+                        Spacer(Modifier.height(Gap.lg))
                         OrbitButton(stringResource(R.string.set_up_accessibility), onBlockAccess, Modifier.fillMaxWidth(), enabled = !locked)
                     }
-                    OrbitHeading(stringResource(R.string.short_video_filters), Modifier.padding(top = 20.dp, bottom = 3.dp), 19)
+                    SectionTitle(stringResource(R.string.short_video_filters), Modifier.padding(top = Gap.xl),
+                        caption = stringResource(R.string.may_vary_with_the_version_of_each))
                 }
                 items(videoTargets, key = { "video:${it.pkg}" }) { target ->
                     VideoRule(target.label, modes.getValue(target), !locked) { mode ->
@@ -165,56 +166,56 @@ internal fun BlockPage(
                     }
                 }
                 item {
-                    Text(stringResource(R.string.may_vary_with_the_version_of_each), Modifier.padding(vertical = 9.dp),
-                        color = Muted, fontSize = 13.sp)
                     OrbitButton(stringResource(R.string.open_web_and_youtube_rules), { contentDialog = true }, Modifier.fillMaxWidth(),
-                        primary = false, rounded = false)
-                    Spacer(Modifier.height(8.dp))
-                    ToggleRule(stringResource(R.string.cover_split_screen_floating_apps), "", coverWindows, !locked) { enabled ->
-                        if (!store.strictWindow()) {
-                            store.prefs.edit().putBoolean("cover_small_windows", enabled).apply()
-                            version++
+                        primary = false, container = OrbitSurface)
+                }
+                item {
+                    Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+                        ToggleRule(stringResource(R.string.cover_split_screen_floating_apps), "", coverWindows, !locked) { enabled ->
+                            if (!store.strictWindow()) {
+                                store.prefs.edit().putBoolean("cover_small_windows", enabled).apply()
+                                version++
+                            }
                         }
                     }
-                    TextButton(onClick = onAdmin, enabled = !locked, contentPadding = PaddingValues(0.dp)) {
-                        Text(if (adminActive) "Manage uninstall protection" else "Set up uninstall protection")
-                    }
-                    Text(stringResource(R.string.optional_android_device_admin), color = Muted, fontSize = 13.sp)
+                }
+                item {
+                    SectionTitle(if (adminActive) "Manage uninstall protection" else "Set up uninstall protection",
+                        Modifier.padding(top = Gap.sm), caption = stringResource(R.string.optional_android_device_admin),
+                        action = { TextButton(onClick = onAdmin, enabled = !locked) { Text(if (adminActive) "Manage" else "Set up") } })
                 }
             } else {
                 if (!showCatalog) {
                     item {
                         val enabled = appProtection && protectionReady
                         AtlasPanel(R.drawable.atlas_block) {
-                            Column(Modifier.fillMaxWidth().padding(18.dp)) {
-                                Text(stringResource(R.string.app_protection), color = androidx.compose.ui.graphics.Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                            Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                                OrbitHeading(stringResource(R.string.app_protection), level = HeadingLevel.Sheet, color = ArtText)
                                 Text(when {
                                     enabled -> "Protection on"
                                     protectionReady -> "Ready to turn on"
                                     else -> "Setup needed"
-                                }, color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp)
-                                Spacer(Modifier.height(30.dp))
-                                Button(onClick = onAppProtection, enabled = !locked,
-                                    colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFBAF3DA), contentColor = androidx.compose.ui.graphics.Color(0xFF211E38))) {
-                                    Text(if (enabled) "Manage protection" else if (protectionReady) "Turn on protection" else "Set up protection")
+                                }, color = ArtText, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
+                                Spacer(Modifier.height(Gap.xl))
+                                ArtButton(onAppProtection, enabled = !locked, container = ArtMint) {
+                                    ArtLabel(if (enabled) "Manage protection" else if (protectionReady) "Turn on protection" else "Set up protection")
                                 }
                             }
                         }
                         if (locked) Text(stringResource(R.string.strict_session_active_rules_are_read_only),
-                            Modifier.padding(top = 12.dp), color = Accent, fontSize = 13.sp)
+                            Modifier.padding(top = Gap.md), color = Accent, fontSize = 13.sp)
                     }
                     item {
-                        OrbitHeading(stringResource(R.string.app_rules), Modifier.padding(top = 15.dp), 19)
-                        Text(if (configuredApps.isEmpty()) "No rules yet" else "${configuredApps.size} configured",
-                            Modifier.padding(top = 3.dp), color = Muted, fontSize = 13.sp)
+                        SectionTitle(stringResource(R.string.app_rules), Modifier.padding(top = Gap.sm),
+                            caption = if (configuredApps.isEmpty()) "No rules yet" else "${configuredApps.size} configured")
                     }
                 }
                 if (apps.isNullOrEmpty()) item {
                     if (!showCatalog && apps != null) {
-                        Panel {
-                            Text(stringResource(R.string.choose_apps_to_block_or_limit), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                        Panel(tone = PanelTone.Quiet) {
+                            Text(stringResource(R.string.choose_apps_to_block_or_limit), color = Ink, fontWeight = FontWeight.SemiBold)
                             Text(stringResource(R.string.you_can_set_up_rules_before_turning),
-                                Modifier.padding(top = 3.dp), color = Muted, fontSize = 13.sp)
+                                Modifier.padding(top = 2.dp), color = Muted, fontSize = 13.sp)
                         }
                     } else Text(
                         when {
@@ -243,51 +244,47 @@ internal fun BlockPage(
                             }
                         }
                     }
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(19.dp)).background(OrbitSurface)
-                            .border(1.dp, Line, RoundedCornerShape(19.dp))
-                            .clickable(onClickLabel = "Open rules for ${app.name}") { editing = app.id }
-                            .heightIn(min = 76.dp).padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)).background(AccentSurface)) {
-                            icon?.let { Image(it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
+                    Panel(onClick = { editing = app.id }, onClickLabel = "Open rules for ${app.name}",
+                        contentPadding = PaddingValues(horizontal = Gap.lg, vertical = Gap.md)) {
+                        Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(44.dp).clip(FieldShape).background(AccentSurface)) {
+                                icon?.let { Image(it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
+                            }
+                            Column(Modifier.weight(1f).padding(horizontal = Gap.md)) {
+                                Text(app.name, color = Ink, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(description, color = Muted, fontSize = 13.sp)
+                            }
+                            OrbitIcon(R.drawable.ic_next, tint = Muted)
                         }
-                        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                            Text(app.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(description, color = Muted, fontSize = 13.sp, lineHeight = 17.sp)
-                        }
-                        OrbitIcon(R.drawable.ic_next)
                     }
                 }
                 if (!showCatalog) {
                     item {
                         OrbitButton(stringResource(R.string.choose_apps), { screen = "catalog"; onSubpage(true) },
-                            Modifier.fillMaxWidth(), primary = false)
+                            Modifier.fillMaxWidth(), primary = false, container = OrbitSurface)
                     }
                     item {
-                        OrbitHeading(stringResource(R.string.advanced_filters), Modifier.padding(top = 22.dp), 19)
-                        ProtectionStatus(
-                            if (blockAccess) "Accessibility enabled" else "Optional · Requires Accessibility",
-                            active = blockAccess, modifier = Modifier.padding(top = 5.dp, bottom = 11.dp)
-                        )
-                        Surface(
-                            onClick = { screen = "advanced"; onSubpage(true) }, modifier = Modifier.fillMaxWidth(),
-                            color = OrbitSurface, shape = CardShape, border = androidx.compose.foundation.BorderStroke(1.dp, Line)
-                        ) {
-                            Row(Modifier.padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                        SectionTitle(stringResource(R.string.advanced_filters), Modifier.padding(top = Gap.sm),
+                            caption = if (blockAccess) "Accessibility enabled" else "Optional · Requires Accessibility")
+                    }
+                    item {
+                        Panel(onClick = { screen = "advanced"; onSubpage(true) },
+                            contentPadding = PaddingValues(horizontal = Gap.lg, vertical = Gap.md)) {
+                            Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.short_videos_websites_youtube), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    Text(stringResource(R.string.short_videos_websites_youtube), color = Ink, fontWeight = FontWeight.SemiBold)
                                     Text(stringResource(R.string.reels_shorts_spotlight_and_study_rules), color = Muted, fontSize = 13.sp)
                                 }
-                                OrbitIcon(R.drawable.ic_next)
+                                OrbitIcon(R.drawable.ic_next, tint = Muted)
                             }
                         }
+                    }
+                    item {
                         Text(
                             if (blockAccess && !appProtection) "Accessibility can still enforce your app rules."
                             else "Whole-app protection can run without Accessibility.",
-                            Modifier.padding(top = 15.dp), color = Muted, fontSize = 13.sp, lineHeight = 16.sp
+                            color = Muted, fontSize = 13.sp
                         )
                     }
                 }
@@ -298,8 +295,8 @@ internal fun BlockPage(
             val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
             val bottom = if (keyboardVisible) 8.dp else (screenHeight - 620.dp).coerceIn(8.dp, 112.dp)
             OrbitButton(stringResource(R.string.show_configured_apps), ::closePage,
-                Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 10.dp, bottom = bottom),
-                primary = false, rounded = false)
+                Modifier.fillMaxWidth().padding(start = ScreenPadding, end = ScreenPadding, top = Gap.md, bottom = bottom),
+                primary = false)
         }
     }
     val app = editing?.let { id ->
@@ -327,14 +324,7 @@ private fun ProtectionStatus(label: String, active: Boolean, modifier: Modifier 
 private const val APP_RULE_ROW = "app-rule"
 
 @Composable
-internal fun BlockSubpageTitle(title: String, onClose: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        OrbitHeading(title, Modifier.weight(1f))
-        IconButton(onClick = onClose) {
-            OrbitIcon(R.drawable.ic_close, androidx.compose.ui.res.stringResource(R.string.close))
-        }
-    }
-}
+internal fun BlockSubpageTitle(title: String, onClose: () -> Unit) = OrbitPageHeader(title, onClose)
 
 @Composable
 private fun RuleDialog(
@@ -349,46 +339,41 @@ private fun RuleDialog(
     var tag by rememberSaveable(app.id) { mutableStateOf(original.tag) }
     var lock by rememberSaveable(app.id) { mutableStateOf(original.isLocked) }
     val editable = !locked && !original.isLocked
-    OrbitFullScreen(onDismiss) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = orbitTopPadding(), bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            BlockSubpageTitle(if (editable) "${app.name} rule" else "Rules are locked", onDismiss)
-            if (editable) {
-                Text(app.name, color = Accent, fontWeight = FontWeight.SemiBold)
-                Panel {
-                    ToggleRule(stringResource(R.string.block_during_focus), "Also applies to scheduled focus-rule windows.", focusOnly) { focusOnly = it }
-                }
-                OrbitField(stringResource(R.string.daily_time_limit_1_720_minutes), minutes, { minutes = it.filter(Char::isDigit).take(3) },
-                    Modifier.fillMaxWidth(), placeholder = "No daily limit", numeric = true, suffix = "minutes",
-                    error = minutes.isNotEmpty() && limit !in 1..720,
-                    errorText = stringResource(R.string.error_limit_range))
-                Text(stringResource(R.string.resets_at_local_midnight_clear_the_field), color = Muted, fontSize = 13.sp)
-                if (limit > 0) Panel {
-                    ToggleRule(stringResource(R.string.lock_limit_until_midnight), "Read-only until tomorrow once saved.", lock) { lock = it }
-                }
+    OrbitScreen(if (editable) "${app.name} rule" else "Rules are locked", onDismiss) {
+        if (editable) {
+            val tags = listOf(AppTag.PRODUCTIVE, AppTag.DISTRACTING, AppTag.UNTAGGED)
+            Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+                ToggleRule(stringResource(R.string.block_during_focus), "Also applies to scheduled focus-rule windows.", focusOnly) { focusOnly = it }
+            }
+            OrbitField(stringResource(R.string.daily_time_limit_1_720_minutes), minutes, { minutes = it.filter(Char::isDigit).take(3) },
+                Modifier.fillMaxWidth(), placeholder = "No daily limit", numeric = true, suffix = "minutes",
+                error = minutes.isNotEmpty() && limit !in 1..720,
+                errorText = stringResource(R.string.error_limit_range),
+                helper = stringResource(R.string.resets_at_local_midnight_clear_the_field))
+            if (limit > 0) Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+                ToggleRule(stringResource(R.string.lock_limit_until_midnight), "Read-only until tomorrow once saved.", lock) { lock = it }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(stringResource(R.string.category), color = Muted, fontSize = 13.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(AppTag.PRODUCTIVE, AppTag.DISTRACTING, AppTag.UNTAGGED).forEach { option ->
-                        OrbitButton(option.label, { tag = option }, Modifier.weight(1f), primary = tag == option)
-                    }
-                }
-                usage?.let { Text("Used today · ${it / MINUTE} min", color = Muted, fontSize = 13.sp) }
-                OrbitButton(stringResource(R.string.save_rule), {
-                    onSave(AppRule(focusOnly, limit, tag, if (limit > 0 && lock) nextMidnight() else 0L))
-                }, Modifier.fillMaxWidth(), enabled = minutes.isEmpty() || limit in 1..720)
-                OrbitButton(stringResource(R.string.cancel), onDismiss, Modifier.fillMaxWidth(), primary = false, rounded = false)
-            } else {
-                Panel {
-                    OrbitHeading(if (original.isLocked) "Locked until midnight" else "Strict session active", size = 18)
-                    Text(if (original.isLocked) "This rule unlocks at midnight, local time." else "Rules are read-only until your strict session finishes.",
-                        Modifier.padding(top = 8.dp), color = Muted)
-                }
-                OrbitHeading(app.name, size = 19)
-                Text("Block during focus · ${if (original.focusOnly) "On" else "Off"}", color = Muted)
+                OrbitSegmented(tags.map { it.label }, tags.indexOf(tag), { tag = tags[it] })
+            }
+            usage?.let { Text("Used today · ${it / MINUTE} min", color = Muted, fontSize = 13.sp) }
+            OrbitButton(stringResource(R.string.save_rule), {
+                onSave(AppRule(focusOnly, limit, tag, if (limit > 0 && lock) nextMidnight() else 0L))
+            }, Modifier.fillMaxWidth(), enabled = minutes.isEmpty() || limit in 1..720)
+        } else {
+            Panel(tone = PanelTone.Tinted) {
+                OrbitHeading(if (original.isLocked) "Locked until midnight" else "Strict session active", level = HeadingLevel.Section)
+                Text(if (original.isLocked) "This rule unlocks at midnight, local time." else "Rules are read-only until your strict session finishes.",
+                    Modifier.padding(top = Gap.sm), color = Muted)
+            }
+            Panel {
+                Text(app.name, color = Ink, fontWeight = FontWeight.SemiBold)
+                Text("Block during focus · ${if (original.focusOnly) "On" else "Off"}", Modifier.padding(top = Gap.sm), color = Muted)
                 Text("Daily limit · ${if (limit > 0) "$limit minutes" else "Off"}", color = Muted)
                 Text("Category · ${original.tag.label}", color = Muted)
-                OrbitButton(stringResource(R.string.back_to_block), onDismiss, Modifier.fillMaxWidth())
             }
+            OrbitButton(stringResource(R.string.back_to_block), onDismiss, Modifier.fillMaxWidth())
         }
     }
 }
@@ -401,8 +386,8 @@ internal fun ToggleRule(title: String, details: String, enabled: Boolean, editab
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
-            Text(title, color = Ink, fontWeight = FontWeight.SemiBold)
-            if (details.isNotEmpty()) Text(details, color = Muted, fontSize = 13.sp, lineHeight = 17.sp)
+            Text(title, color = if (editable) Ink else Muted, fontWeight = FontWeight.SemiBold)
+            if (details.isNotEmpty()) Text(details, color = Muted, fontSize = 13.sp)
         }
         Switch(checked = enabled, enabled = editable, onCheckedChange = null,
             colors = SwitchDefaults.colors(checkedThumbColor = OrbitSurface, checkedTrackColor = Accent,
@@ -429,56 +414,62 @@ internal fun ProgressPage(
     val total = week.last().second
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(start = ScreenPadding, end = ScreenPadding, top = 4.dp, bottom = Gap.xl),
+        verticalArrangement = Arrangement.spacedBy(Gap.md)
     ) {
         item {
             AtlasPanel(R.drawable.atlas_progress) {
-                Column(Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Brush.horizontalGradient(
-                    listOf(androidx.compose.ui.graphics.Color(0xE222305B), androidx.compose.ui.graphics.Color.Transparent)
-                )).padding(18.dp)) {
-                    val white = androidx.compose.ui.graphics.Color.White
-                    Text(stringResource(R.string.today_s_study_goal), color = white, fontWeight = FontWeight.SemiBold)
-                    Text("$total / $goal min", color = white, fontSize = 34.sp, lineHeight = 44.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(18.dp))
+                Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                    Text(stringResource(R.string.today_s_study_goal), color = ArtText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("$total / $goal min", color = ArtText, fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold,
+                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"))
+                    Spacer(Modifier.height(Gap.lg))
                     LinearProgressIndicator(progress = { (total.toFloat() / goal).coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
-                        color = white, trackColor = androidx.compose.ui.graphics.Color(0xFF505E85), drawStopIndicator = {})
-                    if (streak > 0) Text("$streak day streak", Modifier.padding(top = 6.dp), color = white)
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
+                        color = ArtText, trackColor = ArtTrack, drawStopIndicator = {})
+                    if (streak > 0) Text("$streak day streak", Modifier.padding(top = Gap.sm), color = ArtText, fontSize = 14.sp)
                 }
             }
         }
         item {
             Panel {
-                Text(stringResource(R.string.study_rhythm), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                SectionTitle(stringResource(R.string.study_rhythm),
+                    caption = if (weekTotal > 0) "Last 7 days · $weekTotal min · $weekSessions ${if (weekSessions == 1) "session" else "sessions"}" else null)
                 if (weekTotal > 0) {
-                    Text("Last 7 days · $weekTotal min · $weekSessions ${if (weekSessions == 1) "session" else "sessions"}",
-                    color = Muted, fontSize = 13.sp)
                     WeeklyStudyChart(week)
                 } else {
-                    Text(stringResource(R.string.your_first_study_session_this_week_will), color = Muted)
-                    TextButton(onClick = onFocus) { Text(stringResource(R.string.start_a_focus_session)) }
+                    Text(stringResource(R.string.your_first_study_session_this_week_will), Modifier.padding(top = Gap.sm), color = Muted)
+                    OrbitButton(stringResource(R.string.start_a_focus_session), onFocus, Modifier.fillMaxWidth().padding(top = Gap.md), primary = false)
                 }
             }
         }
         item { ScreenTimePanel(apps, store, usageAccess, today, onUsageAccess) }
         item {
-            Text(stringResource(R.string.recent_sessions), Modifier.semantics { heading() }, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            if (recent.isEmpty()) Text(stringResource(R.string.completed_study_sessions_will_appear_here), color = Muted, fontSize = 13.sp)
+            SectionTitle(stringResource(R.string.recent_sessions), Modifier.padding(top = Gap.sm))
         }
-        items(recent) { session ->
-            val name = session.subject.ifBlank { "Focus session" }
-            val date = when (session.day) {
-                today -> stringResource(R.string.relative_today)
-                today.minusDays(1) -> stringResource(R.string.relative_yesterday)
-                else -> session.day.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+        if (recent.isEmpty()) item {
+            Panel(tone = PanelTone.Quiet) {
+                Text(stringResource(R.string.completed_study_sessions_will_appear_here), color = Muted, fontSize = 14.sp)
             }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(name, color = Ink)
-                    Text(date, color = Muted, fontSize = 13.sp)
+        } else item {
+            Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+                recent.forEachIndexed { index, session ->
+                    val name = session.subject.ifBlank { "Focus session" }
+                    val date = when (session.day) {
+                        today -> stringResource(R.string.relative_today)
+                        today.minusDays(1) -> stringResource(R.string.relative_yesterday)
+                        else -> session.day.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+                    }
+                    if (index > 0) HorizontalDivider(color = Line)
+                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = Gap.sm), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f).padding(end = Gap.md)) {
+                            Text(name, color = Ink, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(date, color = Muted, fontSize = 13.sp)
+                        }
+                        Text("${session.minutes} min", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"))
+                    }
                 }
-                Text("${session.minutes} min", color = Accent, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -487,29 +478,7 @@ internal fun ProgressPage(
 @Composable
 private fun VideoRule(title: String, mode: Int, editable: Boolean, onMode: (Int) -> Unit) {
     Panel {
-        Text(title, color = Ink, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-        Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            listOf("Off", "While studying", "Always").forEachIndexed { index, label ->
-                val selected = mode == index
-                Box(
-                    Modifier.weight(if (index == 1) 1.55f else 1f).heightIn(min = 48.dp).clip(CircleShape)
-                        .selectable(selected, enabled = editable, role = Role.RadioButton, onClick = { onMode(index) }),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        label, Modifier.background(if (selected) AccentSurface else OrbitSurface, CircleShape)
-                            .padding(horizontal = 8.dp, vertical = 5.dp),
-                        color = if (selected && editable) Accent else Muted,
-                        fontSize = 13.sp, lineHeight = 16.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                }
-            }
-        }
+        Text(title, color = Ink, fontWeight = FontWeight.SemiBold)
+        OrbitSegmented(listOf("Off", "While studying", "Always"), mode, onMode, Modifier.padding(top = Gap.md), enabled = editable)
     }
-}
-
-@Composable
-internal fun Panel(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(CardShape).background(OrbitSurface).border(1.dp, Line, CardShape).padding(15.dp),
-        content = content)
 }

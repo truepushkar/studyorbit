@@ -6,7 +6,11 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,7 +63,16 @@ private suspend fun downloadMusic(context: Context, track: Soundscape) = withCon
 @Composable
 internal fun MusicPicker(current: Soundscape, onSelect: (Soundscape) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
-    OrbitButton("Focus music · ${current.label}", { open = true }, Modifier.fillMaxWidth(), primary = false)
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 54.dp).orbitField()
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.focus_music)) { open = true }
+            .padding(horizontal = Gap.lg),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(stringResource(R.string.focus_music), Modifier.weight(1f), color = Ink, fontSize = 14.sp)
+        Text(current.label, color = Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        OrbitIcon(R.drawable.ic_next, tint = Muted, size = 20.dp)
+    }
     if (!open) return
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -115,39 +128,47 @@ internal fun MusicPicker(current: Soundscape, onSelect: (Soundscape) -> Unit) {
         }
     }
     OrbitSheet({ open = false }) {
-        OrbitHeading(stringResource(R.string.focus_music))
+        OrbitHeading(stringResource(R.string.focus_music), level = HeadingLevel.Sheet)
         Text(stringResource(R.string.download_a_track_to_preview_it_and), color = Muted)
-        TextButton({ onSelect(Soundscape.OFF); open = false }) {
-            Text(if (current == Soundscape.OFF) "Off · selected" else "Turn music off")
-        }
-        if (error) Text(stringResource(R.string.preview_unavailable_try_again), color = MaterialTheme.colorScheme.error)
-        Soundscape.entries.drop(1).forEach { item ->
-            Column(Modifier.fillMaxWidth()) {
-                Text(item.label, color = Ink, style = MaterialTheme.typography.titleMedium)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (item in savedTracks) {
-                        TextButton({ error = false; preview = if (preview == item) null else item }) {
-                            Text(if (preview == item) "Stop preview" else "Preview")
-                        }
-                        TextButton({ onSelect(item); open = false }) { Text(if (current == item) "Selected" else "Use track") }
-                    } else {
-                        TextButton(enabled = loading == null, onClick = {
-                            loading = item
-                            failed = null
-                            scope.launch {
-                                try {
-                                    downloadMusic(context, item)
-                                    savedTracks = savedTracks + item
-                                }
-                                catch (cancelled: CancellationException) { throw cancelled }
-                                catch (_: Exception) { failed = item }
-                                finally { loading = null }
-                            }
-                        }) { Text(when (item) { loading -> "Downloading…"; failed -> "Retry download"; else -> "Download" }) }
-                    }
+        if (error) Text(stringResource(R.string.preview_unavailable_try_again), color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+        Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Off", Modifier.weight(1f), color = Ink, fontWeight = FontWeight.SemiBold)
+                TextButton({ onSelect(Soundscape.OFF); open = false }, Modifier.heightIn(min = 48.dp)) {
+                    Text(if (current == Soundscape.OFF) "Selected" else "Turn music off", fontWeight = FontWeight.SemiBold)
                 }
-                if (failed == item) Text(stringResource(R.string.download_failed_check_your_connection_and_retry), color = MaterialTheme.colorScheme.error)
+            }
+            Soundscape.entries.drop(1).forEach { item ->
                 HorizontalDivider(color = Line)
+                Column(Modifier.fillMaxWidth()) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(item.label, Modifier.weight(1f), color = Ink, fontWeight = FontWeight.SemiBold)
+                        if (item in savedTracks) {
+                            TextButton({ error = false; preview = if (preview == item) null else item }, Modifier.heightIn(min = 48.dp)) {
+                                Text(if (preview == item) "Stop preview" else "Preview")
+                            }
+                            TextButton({ onSelect(item); open = false }, Modifier.heightIn(min = 48.dp)) {
+                                Text(if (current == item) "Selected" else "Use track", fontWeight = FontWeight.SemiBold)
+                            }
+                        } else {
+                            TextButton(enabled = loading == null, modifier = Modifier.heightIn(min = 48.dp), onClick = {
+                                loading = item
+                                failed = null
+                                scope.launch {
+                                    try {
+                                        downloadMusic(context, item)
+                                        savedTracks = savedTracks + item
+                                    }
+                                    catch (cancelled: CancellationException) { throw cancelled }
+                                    catch (_: Exception) { failed = item }
+                                    finally { loading = null }
+                                }
+                            }) { Text(when (item) { loading -> "Downloading…"; failed -> "Retry download"; else -> "Download" }, fontWeight = FontWeight.SemiBold) }
+                        }
+                    }
+                    if (failed == item) Text(stringResource(R.string.download_failed_check_your_connection_and_retry),
+                        Modifier.padding(bottom = Gap.md), color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                }
             }
         }
     }

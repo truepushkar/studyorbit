@@ -48,7 +48,7 @@ internal fun blockCoverView(
             setTextColor(if (primary) Color.rgb(33, 30, 56) else accent)
             background = GradientDrawable().apply {
                 setColor(if (primary) accent else if (filled) secondary else Color.TRANSPARENT)
-                cornerRadius = dp(26).toFloat()
+                cornerRadius = dp(16).toFloat()
             }
             setOnClickListener { onClick() }
         }, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(8) })
