@@ -7,7 +7,7 @@ StudyOrbit is an Android app for focus sessions and distraction blocking. It use
 - Plan one-time or repeating study sessions, and review study history and screen time.
 - Add the **Focus timer** or **Next study session** widget from the Android home-screen widget picker under StudyOrbit.
 
-During a session, tap **Float timer** and allow **Display over other apps** to show the timer at the left edge. Use the chevrons to collapse or expand it. Drag it to reposition it, or drop it on the bottom × to hide it while the session continues. **Hide timer** is also available in its notification.
+During a session, tap **Float timer** and allow **Display over other apps** to show the timer at the screen edge. Use the chevrons to collapse or expand it. Drag it to dock it on either edge, or drop it on the bottom × to hide it while the session continues. **Hide timer** is also available in its notification.
 
 Whole-app protection uses Android Usage Access and Display over other apps. Enable it from the Block tab. Advanced filters for short-video feeds, websites, and YouTube channels use optional Accessibility and depend on what each app exposes. Usage Access is also needed for screen-time reports.
 
@@ -16,6 +16,8 @@ Download full music tracks from Settings → Focus music. Downloaded tracks supp
 ## Download
 
 Get the optimized APK from the [latest GitHub release](https://github.com/truepushkar/studyorbit/releases/latest).
+
+Version 2.0 uses the Android application ID `com.studyorbit.app` and installs alongside versions 1.x. Study history and settings stay in the earlier installation. Set up permissions and add the new widgets from the home-screen widget picker.
 
 ## Screenshots
 

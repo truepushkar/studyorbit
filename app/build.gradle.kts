@@ -20,15 +20,15 @@ plugins {
 }
 
 android {
-    namespace = "dev.stillpoint.focus"
+    namespace = "com.studyorbit.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "dev.stillpoint.focus"
+        applicationId = "com.studyorbit.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.9"
+        versionCode = 14
+        versionName = "2.0"
     }
 
     buildFeatures { compose = true }

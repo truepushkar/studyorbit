@@ -3,59 +3,78 @@
     <color name="widget_text">#FFF9F6</color>
     <color name="widget_muted">#C6C5DD</color>
     <color name="widget_accent">#FFBCAC</color>
-
     <color name="widget_planner_accent">#AAF0DB</color>
+    <color name="widget_surface">#1FFFFFFF</color>
+    <color name="widget_track">#33FFFFFF</color>
 
-    <string name="widget_focus_heading">Focus</string>
-    <string name="widget_planner_heading">Up next</string>
     <string name="widget_focus_title">Focus timer</string>
-    <string name="widget_focus_description">See your running or paused timer and open Focus.</string>
+    <string name="widget_focus_description">Your timer and today’s goal progress at a glance.</string>
     <string name="widget_focus_idle">Ready to focus</string>
-    <string name="widget_open_focus">Open Focus</string>
     <string name="widget_focus_running">Focus in progress</string>
     <string name="widget_break_running">Break in progress</string>
     <string name="widget_stopwatch_running">Stopwatch running</string>
+    <string name="widget_goal_progress">%1$d / %2$d min</string>
+    <string name="widget_goal_reached">Goal reached</string>
+    <string name="widget_goal_cd">%1$d of %2$d minutes studied today</string>
+    <string name="widget_goal_reached_cd">Daily goal reached, %1$d minutes studied today</string>
 
     <string name="widget_planner_title">Next study session</string>
-    <string name="widget_planner_description">See the next session in your study plan.</string>
+    <string name="widget_planner_description">Your next study session, with its day, time and length.</string>
+    <string name="widget_planner_heading">Up next</string>
     <string name="widget_planner_empty">Nothing scheduled</string>
-    <string name="widget_open_planner">Open Planner</string>
-    <string name="widget_planner_schedule">%1$s · %2$s · %3$s</string>
+    <string name="widget_day_today">Today</string>
+    <string name="widget_day_tomorrow">Tomorrow</string>
+    <string name="widget_planner_cd">Next study session: %1$s, %2$s at %3$s, %4$s</string>
     <plurals name="widget_duration">
         <item quantity="one">%d min</item>
         <item quantity="other">%d min</item>
     </plurals>
 
+    <!-- Sample content shown in the widget picker preview. -->
+    <string name="widget_sample_clock" translatable="false">24:18</string>
+    <string name="widget_sample_goal" translatable="false">35 / 60 min</string>
+    <string name="widget_sample_time" translatable="false">6:00 PM</string>
+    <string name="widget_sample_title" translatable="false">Circuit diagrams</string>
+    <string name="widget_sample_duration" translatable="false">25 min</string>
+
     <style name="Widget.StudyOrbit.Card" parent="OrbitWidgetCardBase" />
     <style name="OrbitWidgetCardBase" parent="">
         <item name="android:orientation">vertical</item>
-        <item name="android:paddingStart">14dp</item>
-        <item name="android:paddingEnd">14dp</item>
-        <item name="android:paddingTop">12dp</item>
-        <item name="android:paddingBottom">12dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">14dp</item>
     </style>
-    <style name="Widget.StudyOrbit.Heading" parent="">
-        <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:textColor">@color/widget_accent</item>
-        <item name="android:textSize">13sp</item>
+    <style name="Widget.StudyOrbit.Pill" parent="">
+        <item name="android:background">@drawable/widget_pill</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">9dp</item>
+        <item name="android:paddingEnd">11dp</item>
+        <item name="android:paddingTop">4dp</item>
+        <item name="android:paddingBottom">4dp</item>
+    </style>
+    <style name="Widget.StudyOrbit.PillText" parent="">
+        <item name="android:fontFamily">@font/inter_semibold</item>
+        <item name="android:textColor">@color/widget_text</item>
+        <item name="android:textSize">12sp</item>
         <item name="android:includeFontPadding">false</item>
         <item name="android:maxLines">1</item>
         <item name="android:ellipsize">end</item>
     </style>
-    <style name="Widget.StudyOrbit.Value" parent="">
-        <item name="android:fontFamily">sans-serif</item>
-        <item name="android:textStyle">bold</item>
+    <style name="Widget.StudyOrbit.Hero" parent="">
+        <item name="android:fontFamily">@font/inter_bold</item>
         <item name="android:textColor">@color/widget_text</item>
-        <item name="android:textSize">20sp</item>
         <item name="android:includeFontPadding">false</item>
-        <item name="android:maxLines">2</item>
-        <item name="android:ellipsize">end</item>
+        <item name="android:letterSpacing">-0.02</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:gravity">center_vertical|start</item>
     </style>
-    <style name="Widget.StudyOrbit.Detail" parent="">
+    <style name="Widget.StudyOrbit.Caption" parent="">
+        <item name="android:fontFamily">@font/inter_medium</item>
         <item name="android:textColor">@color/widget_muted</item>
-        <item name="android:textSize">13sp</item>
+        <item name="android:textSize">11sp</item>
         <item name="android:includeFontPadding">false</item>
-        <item name="android:maxLines">2</item>
-        <item name="android:ellipsize">end</item>
+        <item name="android:maxLines">1</item>
     </style>
 </resources>
