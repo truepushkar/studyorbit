@@ -1,0 +1,9 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@android:id/background" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/widget_background"
+    android:orientation="vertical" android:gravity="center_vertical" android:paddingHorizontal="16dp" android:paddingVertical="8dp">
+    <ImageView android:layout_width="32dp" android:layout_height="32dp" android:padding="5dp"
+        android:layout_marginBottom="4dp" android:src="@drawable/ic_widget_unlock" android:background="@drawable/widget_badge" />
+    <TextView android:id="@+id/widget_value" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/widget_unavailable" android:textSize="27sp" android:textColor="@color/widget_text" android:textStyle="bold"  />
+    <TextView android:id="@+id/widget_caption" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/widget_unlocks_caption" android:textSize="12sp" android:textColor="@color/widget_muted"  />
+</LinearLayout>

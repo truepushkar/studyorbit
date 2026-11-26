@@ -414,21 +414,25 @@ internal fun OrbitPageHeader(title: String, onClose: () -> Unit, modifier: Modif
 /** Full-screen page with the shared header, edge padding and vertical rhythm. */
 @Composable
 internal fun OrbitScreen(
-    title: String, onClose: () -> Unit, footer: (@Composable () -> Unit)? = null,
+    title: String, onClose: () -> Unit, primaryAction: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     OrbitFullScreen(onClose) {
         Column(Modifier.fillMaxSize().padding(horizontal = ScreenPadding)) {
+            if (primaryAction != null) {
+                Column(Modifier.fillMaxWidth().padding(top = orbitTopPadding(), bottom = Gap.md),
+                    verticalArrangement = Arrangement.spacedBy(Gap.sm)) {
+                    OrbitPageHeader(title, onClose)
+                    primaryAction()
+                }
+            }
             Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
-                    .padding(top = orbitTopPadding(), bottom = ScreenPadding),
+                    .padding(top = if (primaryAction == null) orbitTopPadding() else Gap.xs, bottom = ScreenPadding),
                 verticalArrangement = Arrangement.spacedBy(Gap.lg)
             ) {
-                OrbitPageHeader(title, onClose)
+                if (primaryAction == null) OrbitPageHeader(title, onClose)
                 content()
-            }
-            if (footer != null) {
-                Column(Modifier.fillMaxWidth().padding(top = Gap.sm, bottom = Gap.md)) { footer() }
             }
         }
     }

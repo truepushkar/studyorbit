@@ -1,0 +1,7 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools"
+    android:description="@string/widget_usage_ring_description"
+    android:initialLayout="@layout/widget_usage_ring"
+    android:previewLayout="@layout/widget_usage_ring"
+    android:minWidth="150dp" android:minHeight="148dp"
+    android:targetCellWidth="3" android:targetCellHeight="3"
+    android:updatePeriodMillis="1800000" android:widgetCategory="home_screen" tools:targetApi="31" />

@@ -1,80 +1,32 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="widget_text">#FFF9F6</color>
-    <color name="widget_muted">#C6C5DD</color>
-    <color name="widget_accent">#FFBCAC</color>
-    <color name="widget_planner_accent">#AAF0DB</color>
-    <color name="widget_surface">#1FFFFFFF</color>
-    <color name="widget_track">#33FFFFFF</color>
+    <color name="widget_card">#232236</color>
+    <color name="widget_text">#FAF8FF</color>
+    <color name="widget_muted">#C4C1D4</color>
+    <color name="widget_mint">#AAF0DB</color>
+    <color name="widget_coral">#FFAD99</color>
+    <color name="widget_lavender">#B4A7F7</color>
+    <color name="widget_track">#444159</color>
+    <color name="widget_badge">#393350</color>
+    <color name="widget_action">#E4DDFF</color>
+    <color name="widget_action_text">#241F43</color>
 
-    <string name="widget_focus_title">Focus timer</string>
-    <string name="widget_focus_description">Your timer and today’s goal progress at a glance.</string>
-    <string name="widget_focus_idle">Ready to focus</string>
-    <string name="widget_focus_running">Focus in progress</string>
-    <string name="widget_break_running">Break in progress</string>
-    <string name="widget_stopwatch_running">Stopwatch running</string>
-    <string name="widget_goal_progress">%1$d / %2$d min</string>
-    <string name="widget_goal_reached">Goal reached</string>
-    <string name="widget_goal_cd">%1$d of %2$d minutes studied today</string>
-    <string name="widget_goal_reached_cd">Daily goal reached, %1$d minutes studied today</string>
-
-    <string name="widget_planner_title">Next study session</string>
-    <string name="widget_planner_description">Your next study session, with its day, time and length.</string>
-    <string name="widget_planner_heading">Up next</string>
-    <string name="widget_planner_empty">Nothing scheduled</string>
-    <string name="widget_day_today">Today</string>
-    <string name="widget_day_tomorrow">Tomorrow</string>
-    <string name="widget_planner_cd">Next study session: %1$s, %2$s at %3$s, %4$s</string>
-    <plurals name="widget_duration">
-        <item quantity="one">%d min</item>
-        <item quantity="other">%d min</item>
-    </plurals>
-
-    <!-- Sample content shown in the widget picker preview. -->
-    <string name="widget_sample_clock" translatable="false">24:18</string>
-    <string name="widget_sample_goal" translatable="false">35 / 60 min</string>
-    <string name="widget_sample_time" translatable="false">6:00 PM</string>
-    <string name="widget_sample_title" translatable="false">Circuit diagrams</string>
-    <string name="widget_sample_duration" translatable="false">25 min</string>
-
-    <style name="Widget.StudyOrbit.Card" parent="OrbitWidgetCardBase" />
-    <style name="OrbitWidgetCardBase" parent="">
-        <item name="android:orientation">vertical</item>
-        <item name="android:paddingStart">16dp</item>
-        <item name="android:paddingEnd">16dp</item>
-        <item name="android:paddingTop">14dp</item>
-        <item name="android:paddingBottom">14dp</item>
-    </style>
-    <style name="Widget.StudyOrbit.Pill" parent="">
-        <item name="android:background">@drawable/widget_pill</item>
-        <item name="android:orientation">horizontal</item>
-        <item name="android:gravity">center_vertical</item>
-        <item name="android:paddingStart">9dp</item>
-        <item name="android:paddingEnd">11dp</item>
-        <item name="android:paddingTop">4dp</item>
-        <item name="android:paddingBottom">4dp</item>
-    </style>
-    <style name="Widget.StudyOrbit.PillText" parent="">
-        <item name="android:fontFamily">@font/inter_semibold</item>
-        <item name="android:textColor">@color/widget_text</item>
-        <item name="android:textSize">12sp</item>
-        <item name="android:includeFontPadding">false</item>
-        <item name="android:maxLines">1</item>
-        <item name="android:ellipsize">end</item>
-    </style>
-    <style name="Widget.StudyOrbit.Hero" parent="">
-        <item name="android:fontFamily">@font/inter_bold</item>
-        <item name="android:textColor">@color/widget_text</item>
-        <item name="android:includeFontPadding">false</item>
-        <item name="android:letterSpacing">-0.02</item>
-        <item name="android:maxLines">1</item>
-        <item name="android:gravity">center_vertical|start</item>
-    </style>
-    <style name="Widget.StudyOrbit.Caption" parent="">
-        <item name="android:fontFamily">@font/inter_medium</item>
-        <item name="android:textColor">@color/widget_muted</item>
-        <item name="android:textSize">11sp</item>
-        <item name="android:includeFontPadding">false</item>
-        <item name="android:maxLines">1</item>
-    </style>
+    <string name="widget_focus_title">Time focused</string>
+    <string name="widget_focus_description">Today’s study time and a shortcut to start a focus timer.</string>
+    <string name="widget_start_focus">Start focus</string>
+    <string name="widget_open_focus">Open Focus</string>
+    <string name="widget_focus_caption">Focused today</string>
+    <string name="widget_unlocks_title">Phone unlocks</string>
+    <string name="widget_unlocks_description">Today’s phone unlocks from Android Usage Access.</string>
+    <string name="widget_unlocks_caption">Unlocks today</string>
+    <string name="widget_usage_ring_title">Screen time ring</string>
+    <string name="widget_usage_ring_description">Today’s screen time by app category.</string>
+    <string name="widget_usage_details_title">Screen time breakdown</string>
+    <string name="widget_usage_details_description">Today’s screen time with a productive, distracting, and other breakdown.</string>
+    <string name="widget_today_usage">Today’s screen time</string>
+    <string name="widget_allow_usage">Tap to allow Usage Access</string>
+    <string name="widget_unavailable">—</string>
+    <string name="widget_productive">Productive</string>
+    <string name="widget_distracting">Distracting</string>
+    <string name="widget_other">Other</string>
+    <string name="widget_category_usage">%2$s\n%1$s</string>
 </resources>

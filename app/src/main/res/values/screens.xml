@@ -153,8 +153,9 @@
     <string name="appearance_light">Light</string>
     <string name="appearance_dark">Dark</string>
     <string name="background_color">Background color</string>
-    <string name="color_hue">Hue</string>
-    <string name="color_saturation">Saturation</string>
+    <string name="color_wheel">Color wheel</string>
+    <string name="color_hex">Hex color</string>
+    <string name="recent_background_colors">Recent colors</string>
     <string name="color_brightness">Brightness</string>
     <string name="reset_background_color">Use default</string>
     <string name="background_photo">My photo</string>

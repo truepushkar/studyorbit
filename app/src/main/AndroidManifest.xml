@@ -37,6 +37,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".WidgetFocusActivity" android:exported="false" android:noHistory="true" />
         <activity android:name=".MiniTimerActivity" android:exported="false"
             android:excludeFromRecents="true" android:launchMode="singleTask"
             android:taskAffinity="${applicationId}.minitimer" android:supportsPictureInPicture="true" />
@@ -50,14 +51,26 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_focus_info" />
         </receiver>
-        <receiver
-            android:name=".PlannerWidgetProvider"
-            android:exported="false"
-            android:label="@string/widget_planner_title">
+        <receiver android:name=".UnlocksWidgetProvider" android:exported="false"
+            android:label="@string/widget_unlocks_title">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_planner_info" />
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_unlocks_info" />
+        </receiver>
+        <receiver android:name=".UsageRingWidgetProvider" android:exported="false"
+            android:label="@string/widget_usage_ring_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_usage_ring_info" />
+        </receiver>
+        <receiver android:name=".UsageDetailsWidgetProvider" android:exported="false"
+            android:label="@string/widget_usage_details_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_usage_details_info" />
         </receiver>
         <receiver android:name=".PlannerReceiver" android:exported="false">
             <intent-filter>

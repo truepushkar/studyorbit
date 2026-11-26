@@ -121,7 +121,6 @@ internal class StudyPlanner(private val context: Context, private val prefs: Sha
         }
         prefs.edit().putString("study_schedules", array.toString()).apply()
         arm()
-        PlannerWidgetProvider.refresh(context, prefs)
     }
 
     fun arm() {
@@ -186,7 +185,7 @@ class PlannerReceiver : BroadcastReceiver() {
             store.restoreAlarm()
             store.syncStudyNotification()
             FocusWidgetProvider.refresh(context, store::sessionSnapshot)
-            PlannerWidgetProvider.refresh(context, store.prefs)
+            UsageWidgetProvider.requestRefresh(context)
         }
         planner.arm()
     }

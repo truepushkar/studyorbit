@@ -25,6 +25,8 @@ const val YOUTUBE = "com.google.android.youtube"
 
 data class DeviceApp(val id: String, val name: String, val launcher: ComponentName)
 
+internal data class UsageReport(val appTimes: Map<String, Long>, val unlocks: Int)
+
 class DeviceApps(private val context: Context) {
     private val pm get() = context.packageManager
     private val protectedApps by lazy {
@@ -96,8 +98,10 @@ class DeviceApps(private val context: Context) {
     fun screenReady(): Boolean = context.getSystemService(PowerManager::class.java).isInteractive &&
         !context.getSystemService(KeyguardManager::class.java).isKeyguardLocked
 
+    suspend fun usageSince(firstDay: LocalDate): Map<String, Long>? = usageReportSince(firstDay)?.appTimes
+
     @Suppress("DEPRECATION")
-    suspend fun usageSince(firstDay: LocalDate): Map<String, Long>? {
+    internal suspend fun usageReportSince(firstDay: LocalDate): UsageReport? {
         if (!hasUsageAccess()) return null
         val zone = ZoneId.systemDefault()
         val midnight = firstDay.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -114,6 +118,7 @@ class DeviceApps(private val context: Context) {
         var app: String? = null
         var screenOn = true
         var locked = false
+        var unlocks = 0
         var since = yesterday
 
         fun accrue(until: Long) {
@@ -139,7 +144,11 @@ class DeviceApps(private val context: Context) {
                 UsageEvents.Event.SCREEN_INTERACTIVE -> { accrue(event.timeStamp); screenOn = true }
                 UsageEvents.Event.SCREEN_NON_INTERACTIVE -> { accrue(event.timeStamp); screenOn = false }
                 UsageEvents.Event.KEYGUARD_SHOWN -> { accrue(event.timeStamp); locked = true }
-                UsageEvents.Event.KEYGUARD_HIDDEN -> { accrue(event.timeStamp); locked = false }
+                UsageEvents.Event.KEYGUARD_HIDDEN -> {
+                    accrue(event.timeStamp)
+                    locked = false
+                    if (event.timeStamp >= midnight) unlocks++
+                }
                 UsageEvents.Event.DEVICE_SHUTDOWN, UsageEvents.Event.DEVICE_STARTUP -> {
                     // A shutdown record can carry an old timestamp. Avoid counting through the reboot.
                     accrue(maxOf(event.timeStamp, since))
@@ -148,7 +157,7 @@ class DeviceApps(private val context: Context) {
             }
         }
         accrue(now)
-        return totals
+        return UsageReport(totals, unlocks)
     }
 }
 

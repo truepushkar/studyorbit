@@ -57,16 +57,15 @@ internal fun ContentRulesDialog(
     val invalidBlocked = blockedList.any { websiteHost(it) == null }
     val invalidAllowed = allowedList.any { websiteHost(it) == null }
     val channelList = channels.entries().map(::channelKey).filter { it.isNotBlank() }.toSet()
-    OrbitScreen("Web & YouTube rules", onDismiss, footer = {
-        if (editable) OrbitButton(stringResource(R.string.save_rules), {
+    OrbitScreen("Web & YouTube rules", onDismiss, primaryAction = if (editable) ({
+        OrbitButton(stringResource(R.string.save_rules), {
             onSave(ContentRules(
                 blockedList.mapNotNull(::websiteHost).toSet(), allowedList.mapNotNull(::websiteHost).toSet(),
                 adult, browser, youtube, channelList, if (lock) nextMidnight() else 0
             ))
         }, Modifier.fillMaxWidth(), enabled = !invalidBlocked && !invalidAllowed &&
             (!browser || allowedList.isNotEmpty()) && (!youtube || channelList.isNotEmpty()))
-        else OrbitButton("Close", onDismiss, Modifier.fillMaxWidth())
-    }) {
+    }) else null) {
         Text(when {
             !editable -> "These rules are locked."
             enabled -> "Accessibility is on · rules are enforced"
@@ -251,7 +250,7 @@ private fun UsageRow(label: String, time: Long) {
     }
 }
 
-private fun usageLabel(milliseconds: Long): String {
+internal fun usageLabel(milliseconds: Long): String {
     val minutes = milliseconds / MINUTE
     return when {
         milliseconds == 0L -> "0 min"

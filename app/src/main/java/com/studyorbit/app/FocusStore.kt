@@ -76,11 +76,19 @@ class FocusStore(private val context: Context) {
     var breakMinutes: Int
         get() = prefs.getInt("break_minutes", 5)
         set(value) { prefs.edit().putInt("break_minutes", value).apply() }
+    internal val recentBackgroundColors: List<Int>
+        get() = prefs.getString("recent_background_colors", "").orEmpty().split(',').mapNotNull(String::toIntOrNull)
+
     internal var backgroundColor: Int?
         get() = if (prefs.contains("page_background_color")) prefs.getInt("page_background_color", 0) else null
         set(value) {
             val edit = prefs.edit()
-            if (value == null) edit.remove("page_background_color") else edit.putInt("page_background_color", value)
+            if (value == null) {
+                edit.remove("page_background_color")
+            } else {
+                val recent = (listOf(value) + recentBackgroundColors).distinct().take(6)
+                edit.putInt("page_background_color", value).putString("recent_background_colors", recent.joinToString(","))
+            }
             edit.apply()
         }
 
@@ -148,7 +156,9 @@ class FocusStore(private val context: Context) {
         if (rule.dailyMinutes > 0) edit.putInt("limit:$pkg", rule.dailyMinutes) else edit.remove("limit:$pkg")
         if (rule.tag != AppTag.UNTAGGED) edit.putInt("tag:$pkg", rule.tag.ordinal) else edit.remove("tag:$pkg")
         if (rule.isLocked) edit.putLong("lock:$pkg", rule.lockedUntil) else edit.remove("lock:$pkg")
+        val tagChanged = this.rule(pkg).tag != rule.tag
         edit.apply()
+        if (tagChanged) UsageWidgetProvider.requestRefresh(context)
         return true
     }
 

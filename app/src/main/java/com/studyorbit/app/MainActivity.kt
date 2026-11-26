@@ -99,6 +99,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         resumeCount++
+        UsageWidgetProvider.requestRefresh(this)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -114,6 +115,7 @@ class MainActivity : ComponentActivity() {
     private fun routeDestination(intent: Intent): Destination? = when (intent.action) {
         SHOW_FOCUS -> Destination.FOCUS
         SHOW_PLANNER -> Destination.PLANNER
+        SHOW_PROGRESS -> Destination.PROGRESS
         else -> null
     }
 
@@ -134,6 +136,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val SHOW_FOCUS = "com.studyorbit.app.SHOW_FOCUS"
+        const val SHOW_PROGRESS = "com.studyorbit.app.SHOW_PROGRESS"
         const val SHOW_PLANNER = "com.studyorbit.app.SHOW_PLANNER"
     }
 }
@@ -333,7 +336,10 @@ private fun StudyOrbit(
                                     ),
                                     onReset = { model.reset() },
                                     onMode = { store.prefs.edit().putInt("timer_mode", it.ordinal).apply() },
-                                    onStrict = { store.prefs.edit().putBoolean("strict_preference", it).apply() },
+                                    onStrict = {
+                                        store.prefs.edit().putBoolean("strict_preference", it).apply()
+                                        FocusWidgetProvider.refresh(context, store::sessionSnapshot)
+                                    },
                                     onPin = onPin,
                                     onPhase = { phase = it },
                                     onMinutes = {
@@ -623,7 +629,7 @@ private fun SettingsDialog(
     val c = goalText.toIntOrNull() ?: 0
     val d = longBreak.toIntOrNull() ?: 0
     val e = rounds.toIntOrNull() ?: 0
-    OrbitScreen(stringResource(R.string.study_preferences), onDismiss, footer = {
+    OrbitScreen(stringResource(R.string.study_preferences), onDismiss, primaryAction = {
         OrbitButton(stringResource(R.string.save_settings), {
             store.longBreakMinutes = d
             store.rounds = e
@@ -647,7 +653,7 @@ private fun SettingsDialog(
             OrbitSegmented(AppAppearance.entries.map { stringResource(it.label) }, appearance.ordinal,
                 onSelect = { appearance = AppAppearance.entries[it] })
         }
-        PageColorPicker(selectedColor) { selectedColor = it }
+        PageColorPicker(selectedColor, store.recentBackgroundColors) { selectedColor = it }
         TimerBackgroundPicker(selectedBackground, photoRevision, onSelect = { selectedBackground = it })
         SectionTitle("Reminders", Modifier.padding(top = Gap.sm))
         Panel(contentPadding = PaddingValues(horizontal = Gap.lg)) {
